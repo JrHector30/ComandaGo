@@ -21,10 +21,11 @@ const InventoryView = () => {
         }
         setIsGenerating(true);
         try {
+            const categoryName = categories.find(c => c.id == formData.categoriaId)?.nombre || '';
             const res = await fetch('/api/generate-description', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ productName: formData.nombre })
+                body: JSON.stringify({ productName: formData.nombre, categoryName })
             });
             const data = await res.json();
             if (data.description) {

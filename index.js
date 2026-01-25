@@ -4,6 +4,7 @@ const { PrismaClient } = require('@prisma/client');
 const path = require('path');
 const multer = require('multer');
 const fs = require('fs-extra');
+const sharp = require('sharp');
 const OpenAI = require('openai'); // Import OpenAI
 
 const app = express();
@@ -141,6 +142,7 @@ app.put('/api/tables/:id/status', async (req, res) => {
 // 3. Categories (NEW)
 app.get('/api/categories', async (req, res) => {
     const categories = await prisma.categoria.findMany({
+        where: { deleted: false }, // Filter Soft Deleted
         orderBy: { orden: 'asc' },
         include: {
             _count: {
@@ -177,54 +179,57 @@ app.post('/api/categories', async (req, res) => {
 app.put('/api/categories/:id', async (req, res) => {
     const { id } = req.params;
     const { nombre, color, icono, orden, activo, enviarCocina } = req.body;
-    const category = await prisma.categoria.update({
-        where: { id: parseInt(id) },
-        data: {
-            nombre,
-            color,
-            icono,
-            orden: parseInt(orden),
-            activo,
-            enviarCocina
-        }
-    });
-    res.json(category);
+
+    try {
+        const category = await prisma.categoria.update({
+            where: { id: parseInt(id) },
+            data: {
+                nombre,
+                color,
+                icono,
+                orden: parseInt(orden),
+                activo,
+                enviarCocina
+            }
+        });
+        res.json(category);
+    } catch (e) {
+        console.error("Error updating category:", e);
+        res.status(400).json({ error: "Error al actualizar categoría: " + e.message });
+    }
 });
 
 app.delete('/api/categories/:id', async (req, res) => {
     const { id } = req.params;
-    console.log("Attempting to FORCE DELETE category ID:", id);
     const catId = parseInt(id);
+
     try {
-        // HARD DELETE (Physical Delete)
-        // 1. Delete all products in this category explicitly
-        // NOTE: This might fail if products are in orders (DetalleComanda). 
-        // If that happens, we'd need to assume the user wants to keep data integrity or wipe it all.
-        // For now, following user instruction to delete products first.
-        await prisma.plato.deleteMany({
-            where: { categoryId: catId }
+        // SOFT DELETE Logic
+        // 1. Soft delete all products in this category
+        await prisma.plato.updateMany({
+            where: { categoryId: catId },
+            data: { deleted: true, activo: false }
         });
 
-        // 2. Delete the category itself physicaly
-        await prisma.categoria.delete({
-            where: { id: catId }
+        // 2. Soft delete the category
+        await prisma.categoria.update({
+            where: { id: catId },
+            data: { deleted: true, activo: false }
         });
 
-        console.log("Category FORCE DELETED successfully:", catId);
-        res.json({ message: "Category and its products permanently deleted" });
+        res.json({ message: "Categoría y sus productos desactivados (Soft Delete)." });
     } catch (e) {
-        console.error("Force Delete failed:", e);
-        // Fallback: If FK constraint (likely DetalleComanda), we might need to soft delete or user has to handle it.
-        // But the user asked for Bypass. If this fails, it's because of Order History.
-        res.status(500).json({ error: "Error deleting category: " + e.message });
+        console.error("Delete failed:", e);
+        res.status(500).json({ error: "Error interno al eliminar: " + e.message });
     }
 });
 
 // 4. Products (Modified)
 app.get('/api/products', async (req, res) => {
     const { categoryId } = req.query;
-    const where = { activo: true };
+    const where = { deleted: false }; // Base filter
     if (categoryId) where.categoriaId = parseInt(categoryId);
+    // show filtered products
 
     const products = await prisma.plato.findMany({
         where,
@@ -250,84 +255,145 @@ app.post('/api/products', async (req, res) => {
 app.put('/api/products/:id', async (req, res) => {
     const { id } = req.params;
     const data = req.body;
-    if (data.precio) data.precio = parseFloat(data.precio);
-    if (data.categoriaId) data.categoriaId = parseInt(data.categoriaId);
 
-    const product = await prisma.plato.update({
-        where: { id: parseInt(id) },
-        data
-    });
-    res.json(product);
+    try {
+        if (data.precio) data.precio = parseFloat(data.precio);
+        if (data.categoriaId) data.categoriaId = parseInt(data.categoriaId);
+
+        const product = await prisma.plato.update({
+            where: { id: parseInt(id) },
+            data
+        });
+        res.json(product);
+    } catch (e) {
+        console.error("Error updating product:", e);
+        res.status(400).json({ error: "Error al actualizar producto: " + e.message });
+    }
 });
 
 app.delete('/api/products/:id', async (req, res) => {
     const { id } = req.params;
     try {
-        await prisma.plato.delete({ where: { id: parseInt(id) } });
-        res.json({ message: "Product permanently deleted" });
+        // Soft Delete
+        await prisma.plato.update({
+            where: { id: parseInt(id) },
+            data: { deleted: true, activo: false }
+        });
+        res.json({ message: "Product soft deleted" });
     } catch (error) {
-        if (error.code === 'P2003') {
-            // Foreign key constraint failed -> Soft Delete
-            await prisma.plato.update({
-                where: { id: parseInt(id) },
-                data: { activo: false }
-            });
-            res.json({ message: "Product soft deleted (archived because it has sales history)" });
-        } else {
-            console.error(error);
-            res.status(500).json({ error: "Error deleting product" });
-        }
+        console.error(error);
+        res.status(500).json({ error: "Error deleting product" });
     }
 });
 
 // AI Description Generator
 app.post('/api/generate-description', async (req, res) => {
-    const { productName } = req.body;
+    const { productName, categoryName } = req.body;
     if (!productName) return res.status(400).json({ error: "Product name is required" });
 
-    // MOCK MODE: If no valid key is present or we want to force mock for dev without cost
-    if (!process.env.OPENAI_API_KEY) {
-        console.log(`[AI-MOCK] Generating description for: ${productName}`);
+    // Helper: Normalize
+    const p = productName.toLowerCase();
+    const c = (categoryName || '').toLowerCase(); // "bebidas", "postres", "platos de fondo"
 
-        // Smart Templates based on keywords
-        let desc = `Delicioso plato de ${productName}, preparado con ingredientes frescos y seleccionados.`;
-        const p = productName.toLowerCase();
+    // Helper: Detect Type (Food, Drink, Dessert)
+    let type = 'comida'; // Default
+    if (c.includes('bebida') || c.includes('refresco') || c.includes('jugo') || c.includes('bar')) {
+        type = 'bebida';
+    } else if (c.includes('postre') || c.includes('dulce')) {
+        type = 'postre';
+    }
 
-        if (p.includes('ceviche') || p.includes('marisco')) {
-            desc = "Fresco y vibrante, marinado en limón sutil y ají limo, acompañado de camote glaseado y choclo tierno.";
-        } else if (p.includes('pollo') || p.includes('brasa')) {
-            desc = "Jugoso y dorado, sazonado con nuestra receta secreta de especias y cocido a la perfección.";
-        } else if (p.includes('arroz') || p.includes('chaufa')) {
-            desc = "Salteado al wok con fuego alto para ese sabor ahumado inconfundible, mezclado con trozos generosos de carne y verduras.";
-        } else if (p.includes('lomo') || p.includes('saltado')) {
-            desc = "Tradición peruana en su máxima expresión: trozos de carne flambeados al wok, cebolla crujiente y tomate fresco.";
-        } else if (p.includes('sopa') || p.includes('caldo')) {
-            desc = "Reconfortante y sustancioso, cocinado a fuego lento para concentrar todos los sabores caseros.";
-        } else if (p.includes('bistec') || p.includes('carne')) {
-            desc = "Corte premium a la parrilla, servido en su punto ideal para resaltar su terneza y sabor.";
-        } else if (p.includes('cafe') || p.includes('mate')) {
-            desc = "Aroma intenso y sabor equilibrado, perfecto para acompañar una buena conversación.";
+    // Heuristics for Brands (Override category if obvious)
+    const knownDrinkBrands = ['coca', 'inca', 'fanta', 'sprite', 'pepsi', 'cerveza', 'agua', 'cusqueña', 'pilsen'];
+    if (knownDrinkBrands.some(b => p.includes(b))) {
+        type = 'bebida';
+    }
+
+    // MOCK MODE Logic
+    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'mock-key') {
+        console.log(`[AI-MOCK] Generating description for: ${productName} (Type: ${type})`);
+
+        let desc = "";
+
+        if (type === 'bebida') {
+            // Rule: Temp, Size, Pairing
+            if (p.includes('coca') || p.includes('inca') || p.includes('gas')) {
+                desc = "Gaseosa helada de 500ml, burbujeante y refrescante. El acompañante ideal para cortar la grasa y limpiar el paladar.";
+            } else if (p.includes('jugo') || p.includes('limonada')) {
+                desc = "Preparado al momento con frutas de estación. 100% natural, servido bien frío para combatir el calor.";
+            } else if (p.includes('cerveza')) {
+                desc = "Cerveza premium bien fría de 620ml. Notas de malta y un amargor equilibrado, perfecta para compartir.";
+            } else if (p.includes('agua')) {
+                desc = "Agua purificada de 600ml, disponible con o sin gas. Vital para una hidratación ligera.";
+            } else {
+                desc = "Refrescante bebida servida a temperatura ideal. La opción clásica para completar tu mesa.";
+            }
+        } else if (type === 'postre') {
+            // Rule: Texture, Sweetness
+            if (p.includes('torta') || p.includes('cake')) {
+                desc = "Bizcocho húmedo y esponjoso, con el dulzor exacto y una textura que se deshace en la boca.";
+            } else if (p.includes('helado')) {
+                desc = "Cremosidad intensa y sabor puro. Servido a la temperatura perfecta para disfrutar su suavidad.";
+            } else if (p.includes('flan') || p.includes('leche')) {
+                desc = "Textura sedosa y caramelo líquido. Un clásico de suavidad inigualable y dulzor reconfortante.";
+            } else {
+                desc = "El cierre dulce perfecto. Texturas suaves y sabores equilibrados para deleitar el paladar.";
+            }
+        } else {
+            // Food: Flavor, Cooking Method, Brief
+            if (p.includes('ceviche')) {
+                desc = "Pescado fresco marinado al momento en limón sutil y ají limo. Sabor vibrante y equilibrado.";
+            } else if (p.includes('lomo')) {
+                desc = "Trozos de carne sellados al wok a fuego alto. Sabor ahumado intenso con cebolla crujiente y tomate.";
+            } else if (p.includes('arroz')) {
+                desc = "Graneado perfecto y salteado al wok. Una explosión de sabores ahumados integrados con carne y verduras.";
+            } else if (p.includes('pollo')) {
+                desc = "Jugoso por dentro y dorado por fuera. Sazonado con especias tradicionales y cocido lentamente.";
+            } else if (p.includes('hamburguesa')) {
+                desc = "Carne jugosa a la parrilla con queso fundido. Sabores intensos y texturas clásicas.";
+            } else if (p.includes('caldo') || p.includes('sopa')) {
+                desc = "Concentrado de sabores caseros cocinado a fuego lento. Reconfortante y sustancioso.";
+            } else {
+                desc = "Preparación clásica con sazón tradicional. Ingredientes seleccionados para resaltar el sabor auténtico.";
+            }
         }
 
         return res.json({
             description: desc,
-            mode: 'mock'
+            mode: 'mock_context_aware'
         });
     }
 
     // REAL AI MODE
     try {
+        const systemPrompt = `Eres un experto redactor gastronómico (copywriter) para menús móviles.
+        
+        REGLAS ESTRICTAS:
+        1. Contexto: El producto es de tipo "${type.toUpperCase()}". Adaptate a ello.
+        2. Longitud: Máximo 2 oraciones cortas.
+        3. Tono: Vendedor pero honesto. Nada de poesía barata.
+        4. PROHIBIDO: No uses "Delicioso plato de", "Ingredientes frescos", "Experiencia culinaria".
+        
+        PAUTAS POR TIPO:
+        - Si es BEBIDA: Menciona temperatura (helada/fría), volumen aprox si aplica, y sensación (refrescante/digestiva).
+        - Si es COMIDA: Menciona método de cocción (wok/parrilla/horno) y perfil de sabor (ahumado/jugoso/picante).
+        - Si es POSTRE: Menciona textura (cremoso/esponjoso/crujiente) y nivel de dulzor.
+        
+        Genera una descripción única para vender el producto: "${productName}".`;
+
         const completion = await openai.chat.completions.create({
             messages: [
-                { role: "system", content: "Eres un experto gastronómico peruano. Redacta una descripción corta (máximo 2 líneas), apetitosa y elegante para el menú de un restaurante. Enfócate en sabor y tradición." },
-                { role: "user", content: `Describe este plato: ${productName}` }
+                { role: "system", content: systemPrompt },
+                { role: "user", content: productName }
             ],
             model: "gpt-3.5-turbo",
+            max_tokens: 60,
+            temperature: 0.7
         });
 
         res.json({
             description: completion.choices[0].message.content,
-            mode: 'ai'
+            mode: 'ai_context_aware'
         });
     } catch (error) {
         console.error("OpenAI Error:", error);
@@ -336,23 +402,44 @@ app.post('/api/generate-description', async (req, res) => {
 });
 
 // Image Upload
-app.post('/api/upload', upload.single('image'), (req, res) => {
+app.post('/api/upload', upload.single('image'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
-    // Check if it's a user photo upload (via query param or field, but for simplicity we rely on where the consumer puts it or if we want separate endpoints)
-    // Actually, Multer is configured to one destination. 
-    // To support multiple destinations dynamically, we need to change storage config or move file.
-    // Let's Simple Fix: Move file if 'type=user' query param is present.
+    try {
+        // Determine Destination
+        let targetDir = uploadDir; // default: productos
+        let relativeDir = '/uploads/productos';
 
-    let filePath = `/uploads/productos/${req.file.filename}`;
+        if (req.query.type === 'user') {
+            targetDir = uploadUsersDir;
+            relativeDir = '/uploads/usuarios';
+        }
 
-    if (req.query.type === 'user') {
-        const newPath = path.join(uploadUsersDir, req.file.filename);
-        fs.moveSync(req.file.path, newPath);
-        filePath = `/uploads/usuarios/${req.file.filename}`;
+        // Generate optimized filename
+        const filename = path.parse(req.file.filename).name + '.webp';
+        const finalPath = path.join(targetDir, filename);
+
+        // Process with Sharp
+        await sharp(req.file.path)
+            .resize({ width: 800, withoutEnlargement: true }) // Max width 800
+            .webp({ quality: 80 }) // Compress to WebP
+            .toFile(finalPath);
+
+        // Cleanup Original File
+        await fs.unlink(req.file.path);
+
+        // Return new URL
+        const fileUrl = `${relativeDir}/${filename}`;
+        res.json({ url: fileUrl });
+
+    } catch (error) {
+        console.error("Image processing error:", error);
+        // Try to cleanup temp file if it exists
+        if (req.file && await fs.pathExists(req.file.path)) {
+            await fs.unlink(req.file.path).catch(console.error);
+        }
+        res.status(500).json({ error: "Error processing image" });
     }
-
-    res.json({ url: filePath });
 });
 
 
