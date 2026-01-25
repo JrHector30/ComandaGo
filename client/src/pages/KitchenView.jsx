@@ -73,7 +73,7 @@ const KitchenView = () => {
         <div style={{ height: 'calc(100vh - 80px)', display: 'flex', flexDirection: 'column' }}>
             <h1 style={{ marginBottom: 20 }}>Flujo de Cocina (Por Plato)</h1>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gridTemplateRows: '1fr', gap: 20, flex: 1, overflow: 'hidden', minHeight: 0 }}>
+            <div className="kitchen-columns" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gridTemplateRows: '1fr', gap: 20, flex: 1, overflow: 'hidden', minHeight: 0 }}>
 
                 {/* COLUMN 1: PENDIENTES */}
                 <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-card)', overflow: 'hidden', height: '100%' }}>

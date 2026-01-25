@@ -247,7 +247,7 @@ const CashCountTable = ({ onStatusChange }) => {
             </div>
 
             {/* Table: History List */}
-            <div style={{ overflowX: 'auto', minHeight: 150 }}>
+            <div className="table-responsive" style={{ minHeight: 150 }}>
                 <table style={{ width: '100%', minWidth: 900 }}>
                     <thead>
                         <tr>

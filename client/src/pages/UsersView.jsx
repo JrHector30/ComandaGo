@@ -139,7 +139,7 @@ const UsersView = () => {
         <div style={{ padding: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <button className="glass-button" onClick={() => navigate(-1)} style={{ padding: 8 }}>
+                    <button className="glass-button" onClick={() => navigate('/')} style={{ padding: 8 }}>
                         <ArrowLeft size={20} />
                     </button>
                     <h1>Gestión de Usuarios</h1>
@@ -163,7 +163,7 @@ const UsersView = () => {
             </div>
 
             {/* Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20 }}>
+            <div className="responsive-grid">
                 {filteredUsers.map(user => (
                     <div key={user.id} className="glass-panel" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                         <div style={{ height: 100, background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>

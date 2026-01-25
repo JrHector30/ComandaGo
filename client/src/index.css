@@ -531,6 +531,26 @@ h2 {
   display: none;
 }
 
+/* Mobile UX Improvements */
+.responsive-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+}
+
 @media (max-width: 768px) {
   .app-container {
     flex-direction: column;
@@ -590,8 +610,8 @@ h2 {
   }
 
   /* Mobile UX Improvements */
-  .grid-container,
-  div[style*="grid-template-columns"] {
+  /* Force 1 column on mobile for responsive grids */
+  .responsive-grid {
     grid-template-columns: 1fr !important;
   }
 
@@ -601,15 +621,26 @@ h2 {
   }
 
   .glass-button {
-    padding: 8px 12px;
-    font-size: 0.9rem;
+    padding: 12px 16px;
+    /* Larger touch targets */
+    padding: 12px 16px;
+    /* Larger touch targets */
+    font-size: 1rem;
+    min-height: 48px;
+    /* Minimum touch target size recommended 48px */
+    margin: 5px;
+    /* Margin for safety */
   }
 
-  /* Ensure tables scroll */
-  table {
-    display: block;
-    overflow-x: auto;
-    white-space: nowrap;
+  /* Ensure action buttons in tables/lists have space */
+  td .glass-button {
+    margin: 2px;
+  }
+
+  /* Ensure tables scroll inside wrapper, NOT on table element itself which breaks layout */
+  .table-responsive table {
+    min-width: 600px;
+    /* Force scroll */
   }
 
   .order-layout {
@@ -624,6 +655,14 @@ h2 {
     background: none;
     border: none;
     color: var(--text-main);
+  }
+
+  /* Forms 100% width */
+  .glass-input,
+  select.glass-input {
+    width: 100% !important;
+    font-size: 16px;
+    /* Prevent zoom on iOS */
   }
 }
 

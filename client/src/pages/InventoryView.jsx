@@ -238,7 +238,7 @@ const InventoryView = () => {
         <div style={{ padding: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <button className="glass-button" onClick={() => navigate(-1)} style={{ padding: 8 }}>
+                    <button className="glass-button" onClick={() => navigate('/')} style={{ padding: 8 }}>
                         <ArrowLeft size={20} />
                     </button>
                     <h1>Almacén (Productos)</h1>
@@ -274,7 +274,7 @@ const InventoryView = () => {
                 </select>
             </div>
 
-            <div className="glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="glass-panel table-responsive" style={{ padding: 0 }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                         <tr style={{ background: 'rgba(255,255,255,0.05)', textAlign: 'left' }}>

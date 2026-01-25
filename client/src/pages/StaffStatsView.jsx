@@ -61,7 +61,7 @@ const StaffStatsView = () => {
     return (
         <div className="fade-in">
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 30 }}>
-                <button className="glass-button" onClick={() => navigate(-1)} style={{ padding: 8 }}>
+                <button className="glass-button" onClick={() => navigate('/')} style={{ padding: 8 }}>
                     <ArrowLeft size={20} />
                 </button>
                 <h1 style={{ margin: 0 }}>Dashboard de Personal</h1>
@@ -82,7 +82,7 @@ const StaffStatsView = () => {
                     unit="S/. "
                 />
                 {/* Table Details */}
-                <div className="glass-panel" style={{ padding: 20, flex: 1 }}>
+                <div className="glass-panel table-responsive" style={{ padding: 20, flex: 1 }}>
                     <h3>Detalle de Atención</h3>
                     <table style={{ width: '100%', marginTop: 15 }}>
                         <thead>
@@ -120,7 +120,7 @@ const StaffStatsView = () => {
                 />
 
                 {/* Table Details + Time */}
-                <div className="glass-panel" style={{ padding: 20, flex: 1 }}>
+                <div className="glass-panel table-responsive" style={{ padding: 20, flex: 1 }}>
                     <h3>Eficiencia</h3>
                     <table style={{ width: '100%', marginTop: 15 }}>
                         <thead>

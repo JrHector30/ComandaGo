@@ -409,7 +409,7 @@ const TablesView = () => {
     return (
         <div>
             <h1>Salón Principal</h1>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
+            <div className="responsive-grid">
                 {tables.map(table => (
                     <div
                         key={table.id}

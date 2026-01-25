@@ -43,7 +43,7 @@ const CashierView = () => {
     return (
         <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-                <button className="glass-button" onClick={() => navigate(-1)} style={{ padding: 8 }}>
+                <button className="glass-button" onClick={() => navigate('/')} style={{ padding: 8 }}>
                     <ArrowLeft size={20} />
                 </button>
                 <h1>Módulo de Caja</h1>
@@ -62,10 +62,7 @@ const CashierView = () => {
                 )}
             </div>
 
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
-                gap: 20,
+            <div className="responsive-grid" style={{
                 opacity: shiftStatus === 'cerrado' ? 0.6 : 1,
                 pointerEvents: shiftStatus === 'cerrado' ? 'none' : 'auto'
             }}>
