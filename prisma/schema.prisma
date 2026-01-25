@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int       @id @default(autoincrement())
+  nombre    String
+  usuario   String    @unique // Login username
+  rol       String    // mozo, cocina, caja, admin
+  password  String
+  foto      String?   // URL to profile photo
+  comandas  Comanda[]
+  detallesCocina DetalleComanda[] @relation("CocineroDetalle")
+}
+
+model Mesa {
+  id        Int       @id @default(autoincrement())
+  numero    String    @unique
+  capacidad Int
+  estado    String    @default("libre") // libre, ocupada, cerrada
+  comandas  Comanda[]
+}
+
+
+model Categoria {
+  id      Int      @id @default(autoincrement())
+  nombre  String   @unique
+  icono   String?
+  color   String   @default("#000000")
+  orden   Int      @default(0)
+  activo  Boolean  @default(true)
+  deleted Boolean  @default(false) // Soft Delete
+  enviarCocina Boolean @default(true)
+  platos  Plato[]
+}
+
+model Plato {
+  id              Int              @id @default(autoincrement())
+  nombre          String
+  descripcion     String?
+  precio          Float
+  categoriaId     Int
+  categoria       Categoria        @relation(fields: [categoriaId], references: [id])
+  imagen          String?
+  activo          Boolean          @default(true)
+  deleted         Boolean          @default(false)
+  fechaCreacion   DateTime         @default(now())
+  ultimaModificacion DateTime      @updatedAt
+  detalles        DetalleComanda[]
+}
+
+model Comanda {
+  id        Int              @id @default(autoincrement())
+  mesaId    Int
+  mesa      Mesa             @relation(fields: [mesaId], references: [id])
+  usuarioId Int
+  usuario   User             @relation(fields: [usuarioId], references: [id])
+  fecha     DateTime         @default(now())
+  estado    String           @default("pendiente") // pendiente, enviada, preparando, lista, entregada, cerrada
+  
+  // Payment Fields
+  metodoPago    String?   // efectivo, tarjeta, yape
+  tipoDocumento String?   // boleta, factura, sin_comprobante
+  montoRecibido Float?
+  propina       Float     @default(0)
+  observacion   String?
+  emailCliente  String?
+  
+  detalles  DetalleComanda[]
+}
+
+model Arqueo {
+  id           Int       @id @default(autoincrement())
+  fechaInicio  DateTime  @default(now())
+  fechaFin     DateTime?
+  montoInicial Float
+  montoFinal   Float?
+  estado       String    @default("abierto") // abierto, cerrado
+  usuarioId    Int
+}
+
+model DetalleComanda {
+  id        Int     @id @default(autoincrement())
+  comandaId Int
+  comanda   Comanda @relation(fields: [comandaId], references: [id])
+  platoId   Int
+  plato     Plato   @relation(fields: [platoId], references: [id])
+  cantidad  Int
+  estado    String  @default("pendiente") // pendiente, preparando, listo
+  observacion String?
+  cocineroId Int?
+  cocinero   User?   @relation("CocineroDetalle", fields: [cocineroId], references: [id])
+  fechaPreparacion DateTime?
+  fechaListo       DateTime?
+}
