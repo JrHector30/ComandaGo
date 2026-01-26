@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Minus, Send, Trash2, ArrowLeft, Search, Image as ImageIcon, FileText } from 'lucide-react';
+import { Plus, Minus, Send, Trash2, ArrowLeft, Search, Image as ImageIcon, FileText, Info, X } from 'lucide-react';
 
 const WaiterOrderView = () => {
     const { tableId } = useParams();
@@ -16,6 +16,7 @@ const WaiterOrderView = () => {
     // UI State
     const [selectedCategoryId, setSelectedCategoryId] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [infoModalProduct, setInfoModalProduct] = useState(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -192,12 +193,38 @@ const WaiterOrderView = () => {
                             const qty = getProductQtyInCart(product.id);
                             return (
                                 <div key={product.id} className="glass-panel" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', border: qty > 0 ? '1px solid var(--primary)' : 'none' }}>
-                                    <div style={{ height: 100, background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <div style={{ height: 100, background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                                         {product.imagen ? (
                                             <img src={product.imagen} alt={product.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                         ) : (
                                             <ImageIcon size={30} className="text-muted" opacity={0.3} />
                                         )}
+                                        {/* INFO BUTTON (Forced Visibility) */}
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setInfoModalProduct(product);
+                                            }}
+                                            style={{
+                                                position: 'absolute',
+                                                top: '10px',
+                                                right: '10px',
+                                                zIndex: 9999,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                width: '30px',
+                                                height: '30px',
+                                                borderRadius: '50%',
+                                                background: '#3b82f6', // Vivid Blue
+                                                border: '2px solid white',
+                                                color: 'white',
+                                                cursor: 'pointer',
+                                                boxShadow: '0 2px 5px rgba(0,0,0,0.3)'
+                                            }}
+                                        >
+                                            <Info size={16} strokeWidth={3} />
+                                        </button>
                                     </div>
                                     <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 5, flex: 1 }}>
                                         <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{product.nombre}</div>
@@ -352,6 +379,42 @@ const WaiterOrderView = () => {
                     </button>
                 </div>
             </div>
+            {/* INFO MODAL */}
+            {infoModalProduct && (
+                <div className="modal-overlay" onClick={() => setInfoModalProduct(null)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
+                        <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: 0 }}>
+                            <h2 style={{ fontSize: '1.2rem' }}>Detalle del Producto</h2>
+                            <button className="glass-button" onClick={() => setInfoModalProduct(null)}><X size={20} /></button>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 15, marginTop: 15 }}>
+                            {/* Hero Image */}
+                            <div style={{ height: 200, borderRadius: 12, overflow: 'hidden', background: '#000' }}>
+                                {infoModalProduct.imagen ? (
+                                    <img src={infoModalProduct.imagen} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                ) : (
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#666' }}>
+                                        <ImageIcon size={40} />
+                                    </div>
+                                )}
+                            </div>
+
+                            <div style={{ textAlign: 'center' }}>
+                                <h3 style={{ fontSize: '1.5rem', marginBottom: 5 }}>{infoModalProduct.nombre}</h3>
+                                <div style={{ color: 'var(--success)', fontWeight: 'bold', fontSize: '1.2rem' }}>S/. {infoModalProduct.precio.toFixed(2)}</div>
+                            </div>
+
+                            <div className="glass-panel" style={{ padding: 15, background: 'rgba(255,255,255,0.03)' }}>
+                                <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>DESCRIPCIÓN</h4>
+                                <p style={{ lineHeight: 1.6, margin: 0 }}>
+                                    {infoModalProduct.descripcion || "Sin descripción disponible."}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

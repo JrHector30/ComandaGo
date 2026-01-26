@@ -104,14 +104,8 @@ const DashboardLayout = () => {
                 <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {(user?.rol === 'admin') && (
                         <>
-                            <NavLink
-                                to="/admin/staff"
-                                className={({ isActive }) => `glass-button ${isActive ? 'primary' : ''}`}
-                                style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center', marginBottom: 5, textDecoration: 'none' }}
-                                onClick={() => setMobileOpen(false)}
-                            >
-                                <ChefHat size={20} /> Dash Personal
-                            </NavLink>
+
+
                             <NavLink
                                 to="/admin/users"
                                 className={({ isActive }) => `glass-button ${isActive ? 'primary' : ''}`}
@@ -119,6 +113,14 @@ const DashboardLayout = () => {
                                 onClick={() => setMobileOpen(false)}
                             >
                                 <User size={20} /> Usuarios
+                            </NavLink>
+                            <NavLink
+                                to="/admin/staff-stats"
+                                className={({ isActive }) => `glass-button ${isActive ? 'primary' : ''}`}
+                                style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center', marginBottom: 10, textDecoration: 'none' }}
+                                onClick={() => setMobileOpen(false)}
+                            >
+                                <Grid size={20} /> Reporte Personal
                             </NavLink>
                         </>
                     )}

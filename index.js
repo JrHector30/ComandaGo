@@ -11,6 +11,9 @@ const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3000;
 
+// GLOBAL STATE for Simulation Metrics
+// (Removed statsStartTime as per new logic)
+
 // Initialize OpenAI (fails gracefully if no key)
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY || 'mock-key', // Use dummy key to prevent crash if missing
@@ -66,13 +69,21 @@ app.put('/api/users/:id', async (req, res) => {
     const { id } = req.params;
     const { nombre, usuario, rol, password, foto } = req.body;
     try {
+        const updateData = {};
+        if (nombre) updateData.nombre = nombre;
+        if (usuario) updateData.usuario = usuario;
+        if (rol) updateData.rol = rol;
+        if (password) updateData.password = password;
+        if (foto !== undefined) updateData.foto = foto;
+
         const user = await prisma.user.update({
             where: { id: parseInt(id) },
-            data: { nombre, usuario, rol, password, foto }
+            data: updateData
         });
         res.json(user);
     } catch (error) {
-        res.status(400).json({ error: error.message });
+        console.error("Error updating user:", error);
+        res.status(400).json({ error: "Error updating user: " + error.message });
     }
 });
 
@@ -187,7 +198,7 @@ app.put('/api/categories/:id', async (req, res) => {
                 nombre,
                 color,
                 icono,
-                orden: parseInt(orden),
+                orden: orden ? parseInt(orden) : 0,
                 activo,
                 enviarCocina
             }
@@ -207,7 +218,7 @@ app.delete('/api/categories/:id', async (req, res) => {
         // SOFT DELETE Logic
         // 1. Soft delete all products in this category
         await prisma.plato.updateMany({
-            where: { categoryId: catId },
+            where: { categoriaId: catId },
             data: { deleted: true, activo: false }
         });
 
@@ -226,9 +237,9 @@ app.delete('/api/categories/:id', async (req, res) => {
 
 // 4. Products (Modified)
 app.get('/api/products', async (req, res) => {
-    const { categoryId } = req.query;
+    const { categoriaId } = req.query;
     const where = { deleted: false }; // Base filter
-    if (categoryId) where.categoriaId = parseInt(categoryId);
+    if (categoriaId) where.categoriaId = parseInt(categoriaId);
     // show filtered products
 
     const products = await prisma.plato.findMany({
@@ -240,16 +251,21 @@ app.get('/api/products', async (req, res) => {
 
 app.post('/api/products', async (req, res) => {
     const { nombre, precio, categoriaId, descripcion, imagen } = req.body;
-    const product = await prisma.plato.create({
-        data: {
-            nombre,
-            precio: parseFloat(precio),
-            categoriaId: parseInt(categoriaId),
-            descripcion,
-            imagen
-        }
-    });
-    res.json(product);
+    try {
+        const product = await prisma.plato.create({
+            data: {
+                nombre,
+                precio: parseFloat(precio),
+                categoriaId: parseInt(categoriaId),
+                descripcion,
+                imagen
+            }
+        });
+        res.json(product);
+    } catch (e) {
+        console.error("Error creating product:", e);
+        res.status(400).json({ error: "Error al crear producto: " + e.message });
+    }
 });
 
 app.put('/api/products/:id', async (req, res) => {
@@ -257,12 +273,18 @@ app.put('/api/products/:id', async (req, res) => {
     const data = req.body;
 
     try {
-        if (data.precio) data.precio = parseFloat(data.precio);
-        if (data.categoriaId) data.categoriaId = parseInt(data.categoriaId);
+        // Safe Data Construction
+        const updateData = {};
+        if (data.nombre) updateData.nombre = data.nombre;
+        if (data.descripcion !== undefined) updateData.descripcion = data.descripcion; // Allow clearing?
+        if (data.precio) updateData.precio = parseFloat(data.precio);
+        if (data.categoriaId) updateData.categoriaId = parseInt(data.categoriaId);
+        if (data.imagen) updateData.imagen = data.imagen; // Allow new image
+        if (data.activo !== undefined) updateData.activo = data.activo;
 
         const product = await prisma.plato.update({
             where: { id: parseInt(id) },
-            data
+            data: updateData
         });
         res.json(product);
     } catch (e) {
@@ -281,8 +303,8 @@ app.delete('/api/products/:id', async (req, res) => {
         });
         res.json({ message: "Product soft deleted" });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "Error deleting product" });
+        console.error("Error deleting product:", error);
+        res.status(500).json({ error: "Error deleting product: " + error.message });
     }
 });
 
@@ -636,14 +658,31 @@ app.put('/api/orders/details/:id', async (req, res) => {
 
 // Staff Stats Endpoint
 app.get('/api/staff/stats', async (req, res) => {
+    const { date } = req.query; // Expect YYYY-MM-DD
     try {
+        // Date Logic
+        let dateFilter = {};
+        if (date) {
+            const start = new Date(`${date}T00:00:00`);
+            const end = new Date(`${date}T23:59:59`);
+            dateFilter = {
+                fecha: {
+                    gte: start,
+                    lte: end
+                }
+            };
+        }
+
         // 1. Waiters Stats (Users with 'comandas')
         // We group by usuarioId in Comanda
         const waiters = await prisma.user.findMany({
             where: { rol: 'mozo' },
             include: {
                 comandas: {
-                    where: { estado: 'cerrada' },
+                    where: {
+                        estado: 'cerrada', // Only paid orders
+                        ...dateFilter      // Filter by date
+                    },
                     include: { detalles: { include: { plato: true } } }
                 }
             }
@@ -660,7 +699,7 @@ app.get('/api/staff/stats', async (req, res) => {
                 id: w.id,
                 nombre: w.nombre,
                 rol: w.rol,
-                totalTables,
+                totalTables, // Orders count
                 totalSales
             };
         });
@@ -670,7 +709,22 @@ app.get('/api/staff/stats', async (req, res) => {
             where: { rol: 'cocina' },
             include: {
                 detallesCocina: {
-                    where: { estado: 'listo' } // or 'entregado'
+                    where: {
+                        estado: 'listo',
+                        // Note: detallesCocina doesn't have a direct date field usually, 
+                        // but we can try to filter by fechaPreparacion or link to Comanda date.
+                        // Ideally we check if the LINKED COMANDA is from that date if detalle doesn't have it.
+                        // checking schema... DetalleComanda usually relies on Comanda's date or has its own timestamps.
+                        // For MVP, if we assume cleanup happens daily, we might just look at all active.
+                        // But let's try to be precise if schema allows.
+                        // If 'fechaPreparacion' exists:
+                        ...(date ? {
+                            fechaPreparacion: {
+                                gte: new Date(`${date}T00:00:00`),
+                                lte: new Date(`${date}T23:59:59`)
+                            }
+                        } : {})
+                    }
                 }
             }
         });
@@ -710,6 +764,38 @@ app.get('/api/staff/stats', async (req, res) => {
     } catch (e) {
         console.error(e);
         res.status(500).json({ error: "Error fetching staff stats" });
+    }
+});
+
+// HARD DELETE DAY (For "Limpiar Jornada")
+app.delete('/api/staff/stats/daily', async (req, res) => {
+    const { date } = req.query; // Expect YYYY-MM-DD
+    if (!date) return res.status(400).json({ error: "Date is required" });
+
+    try {
+        const start = new Date(`${date}T00:00:00`);
+        const end = new Date(`${date}T23:59:59`);
+
+        // 1. Delete Details first (Cascade typically handles this but explicit is safer for logic)
+        // Find IDs first? Or deleteMany with relation filter?
+        // SQLite/Prisma CASCADE: If configured in schema, deleting Comanda deletes Details.
+        // Let's assume standard cascading or do it manually.
+
+        // Delete Comandas in range
+        const deleteComandas = await prisma.comanda.deleteMany({
+            where: {
+                fecha: {
+                    gte: start,
+                    lte: end
+                }
+            }
+        });
+
+        res.json({ message: `Jornada limpiada. ${deleteComandas.count} comandas eliminadas físicamente.` });
+
+    } catch (e) {
+        console.error("Error wiping day:", e);
+        res.status(500).json({ error: "Error eliminando datos del día: " + e.message });
     }
 });
 
@@ -776,7 +862,53 @@ app.post('/api/checkout/:mesaId', async (req, res) => {
 });
 
 // 7. Cashier Arqueo Routes
-// 7. Cashier Arqueo Routes (REAL IMPLEMENTATION)
+// 7.1 Get Specific Arqueo Details (For PDF)
+app.get('/api/cashier/arqueo/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const arq = await prisma.arqueo.findUnique({ where: { id: parseInt(id) } });
+        if (!arq) return res.status(404).json({ error: "Arqueo not found" });
+
+        // Logic similar to balance but for specific ID range
+        const startDate = arq.fechaInicio;
+        const endDate = arq.estado === 'abierto' ? new Date() : arq.fechaFin;
+
+        const sales = await prisma.comanda.findMany({
+            where: {
+                estado: 'cerrada',
+                fecha: { gte: startDate, lte: endDate }
+            },
+            include: { detalles: { include: { plato: true } }, usuario: true } // Include Waiter info
+        });
+
+        const salesData = sales.map(order => ({
+            id: order.id,
+            hora: order.fecha,
+            items: order.detalles.map(d => ({
+                cantidad: d.cantidad,
+                descripcion: d.plato.nombre,
+                precio: d.plato.precio,
+                total: d.cantidad * d.plato.precio
+            })),
+            total: order.detalles.reduce((s, d) => s + (d.cantidad * d.plato.precio), 0),
+            metodo: order.metodoPago,
+            doc: order.tipoDocumento,
+            mozo: order.usuario?.nombre || 'General' // Waiter Name
+        }));
+
+        res.json({
+            ...arq,
+            ventas: salesData,
+            totalBruto: salesData.reduce((acc, s) => acc + s.total, 0)
+        });
+
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: "Error fetching details" });
+    }
+});
+
+// 7.2 Current Balance (REAL IMPLEMENTATION)
 app.get('/api/cashier/balance', async (req, res) => {
     try {
         // Find the LATEST Arqueo
@@ -1084,6 +1216,127 @@ app.get('/api/cashier/history', async (req, res) => {
     } catch (e) {
         console.error(e);
         res.status(500).json({ error: "Error fetching history" });
+    }
+});
+
+
+
+// 9. Staff Stats & Reset (Strict Daily Logic + Destructive Reset)
+app.delete('/api/staff/reset-metrics', async (req, res) => {
+    try {
+        const { fecha } = req.query;
+        let queryStart, queryEnd;
+
+        if (fecha) {
+            queryStart = new Date(fecha + "T00:00:00");
+            queryEnd = new Date(fecha + "T23:59:59.999");
+        } else {
+            const x = new Date();
+            queryStart = new Date(x.getFullYear(), x.getMonth(), x.getDate(), 0, 0, 0);
+            queryEnd = new Date(x.getFullYear(), x.getMonth(), x.getDate(), 23, 59, 59, 999);
+        }
+
+        console.log("DESTRUCTIVE RESET FOR:", queryStart.toDateString());
+
+        const deleted = await prisma.comanda.deleteMany({
+            where: {
+                fecha: { gte: queryStart, lte: queryEnd }
+            }
+        });
+
+        res.json({ message: `Registros de ${fecha || 'Hoy'} eliminados (${deleted.count} comandas).` });
+
+    } catch (e) {
+        console.error("Reset Error:", e);
+        res.status(500).json({ error: "Error resetting metrics" });
+    }
+});
+
+app.get('/api/staff/stats', async (req, res) => {
+    try {
+        const { fecha } = req.query;
+        let startDate, endDate;
+
+        if (fecha) {
+            startDate = new Date(fecha + "T00:00:00");
+            endDate = new Date(fecha + "T23:59:59.999");
+        } else {
+            const now = new Date();
+            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+            endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+        }
+
+        const waiters = await prisma.user.findMany({
+            where: { rol: 'mozo' },
+            include: {
+                comandas: {
+                    where: {
+                        fecha: { gte: startDate, lte: endDate },
+                        estado: 'cerrada'
+                    },
+                    include: { detalles: { include: { plato: true } } }
+                }
+            }
+        });
+
+        const waitersStats = waiters.map(w => {
+            const totalTables = w.comandas.length;
+            const totalSales = w.comandas.reduce((acc, order) => {
+                return acc + order.detalles.reduce((sum, d) => sum + (d.plato.precio * d.cantidad), 0);
+            }, 0);
+
+            return {
+                id: w.id,
+                nombre: w.nombre,
+                totalTables,
+                totalSales
+            };
+        });
+
+        const cooks = await prisma.user.findMany({
+            where: { rol: 'cocina' },
+            include: {
+                detallesCocina: {
+                    where: {
+                        fechaPreparacion: { gte: startDate, lte: endDate },
+                        estado: 'listo'
+                    },
+                    include: { plato: true }
+                }
+            }
+        });
+
+        const cooksStats = cooks.map(c => {
+            const totalDishes = c.detallesCocina.length;
+            let totalMinutes = 0;
+            let countWithTime = 0;
+
+            c.detallesCocina.forEach(d => {
+                if (d.fechaPreparacion && d.fechaListo) {
+                    const diffMs = new Date(d.fechaListo) - new Date(d.fechaPreparacion);
+                    const mins = diffMs / 60000;
+                    if (mins > 0 && mins < 240) {
+                        totalMinutes += mins;
+                        countWithTime++;
+                    }
+                }
+            });
+
+            const avgTimeMin = countWithTime > 0 ? (totalMinutes / countWithTime) : 0;
+
+            return {
+                id: c.id,
+                nombre: c.nombre,
+                totalDishes,
+                avgTimeMin
+            };
+        });
+
+        res.json({ waiters: waitersStats, cooks: cooksStats });
+
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: "Error fetching staff stats" });
     }
 });
 

@@ -2,6 +2,58 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { CheckCircle, Clock, ChefHat, Play, Check, Undo } from 'lucide-react';
 
+const KitchenTimer = ({ startTime }) => {
+    const [elapsed, setElapsed] = useState('');
+    const [alertClass, setAlertClass] = useState('text-muted');
+
+    useEffect(() => {
+        const calculateTime = () => {
+            const start = new Date(startTime);
+            const now = new Date();
+            const diffMs = now - start;
+            const minutes = Math.floor(diffMs / 60000);
+
+            setElapsed(`Hace ${minutes} min`);
+
+            if (minutes > 25) setAlertClass('timer-critical');
+            else if (minutes > 15) setAlertClass('timer-warning');
+            else setAlertClass('text-muted');
+        };
+
+        calculateTime();
+        const interval = setInterval(calculateTime, 60000); // Update every 60s
+        return () => clearInterval(interval);
+    }, [startTime]);
+
+    return <span className={alertClass} style={{ fontSize: '0.8rem' }}>{elapsed}</span>;
+};
+
+const ItemCard = React.memo(({ item, actionButton }) => (
+    <div className="glass-panel fade-in" style={{ padding: 15, marginBottom: 10, borderLeft: item.observacion ? '5px solid var(--danger)' : '5px solid var(--primary)', display: 'flex', flexDirection: 'column', gap: 5, transition: 'all 0.3s ease' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{item.cantidad}x {item.plato.nombre}</span>
+            <span className="badge" style={{ background: 'var(--item-hover)' }}>Mesa {item.comanda.mesa.numero}</span>
+        </div>
+
+        {item.observacion && (
+            <div style={{ color: '#ff6b6b', fontWeight: 'bold', fontSize: '0.9rem', background: 'rgba(255,50,50,0.1)', padding: '5px 8px', borderRadius: 4 }}>
+                📝 {item.observacion}
+            </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 5 }}>
+            <KitchenTimer startTime={item.fecha || item.comanda.fecha} />
+            {item.cocinero && (
+                <span style={{ fontSize: '0.8rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <ChefHat size={14} /> {item.cocinero.nombre}
+                </span>
+            )}
+        </div>
+
+        {actionButton}
+    </div>
+));
+
 const KitchenView = () => {
     const { user } = useAuth();
     const [queue, setQueue] = useState([]);
@@ -9,7 +61,8 @@ const KitchenView = () => {
     const fetchQueue = () => {
         fetch('/api/kitchen/queue')
             .then(res => res.json())
-            .then(data => setQueue(data));
+            .then(data => setQueue(data))
+            .catch(err => console.error("Error polling queue", err));
     };
 
     useEffect(() => {
@@ -20,8 +73,6 @@ const KitchenView = () => {
 
     const updateItemStatus = async (itemId, status, options = {}) => {
         const payload = { estado: status };
-        // If status is preparing from pending, assign cook. 
-        // If reverting (preserveCook), do not change cook.
         if (status === 'preparando' && !options.preserveCook) {
             payload.cocineroId = user.id;
         }
@@ -42,32 +93,6 @@ const KitchenView = () => {
     const pendingItems = queue.filter(i => i.estado === 'pendiente' || i.estado === 'enviada');
     const inProcessItems = queue.filter(i => i.estado === 'preparando');
     const readyItems = queue.filter(i => i.estado === 'lista' || i.estado === 'listo');
-
-    const ItemCard = ({ item, actionButton }) => (
-        <div className="glass-panel" style={{ padding: 15, marginBottom: 10, borderLeft: item.observacion ? '5px solid var(--danger)' : '5px solid var(--primary)', display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{item.cantidad}x {item.plato.nombre}</span>
-                <span className="badge" style={{ background: 'var(--item-hover)' }}>Mesa {item.comanda.mesa.numero}</span>
-            </div>
-
-            {item.observacion && (
-                <div style={{ color: '#ff6b6b', fontWeight: 'bold', fontSize: '0.9rem', background: 'rgba(255,50,50,0.1)', padding: '5px 8px', borderRadius: 4 }}>
-                    📝 {item.observacion}
-                </div>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 5 }}>
-                <span className="text-muted" style={{ fontSize: '0.8rem' }}>{new Date(item.comanda.fecha).toLocaleTimeString().slice(0, 5)}</span>
-                {item.cocinero && (
-                    <span style={{ fontSize: '0.8rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <ChefHat size={14} /> {item.cocinero.nombre}
-                    </span>
-                )}
-            </div>
-
-            {actionButton}
-        </div>
-    );
 
     return (
         <div style={{ height: 'calc(100vh - 80px)', display: 'flex', flexDirection: 'column' }}>

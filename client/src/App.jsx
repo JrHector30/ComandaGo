@@ -13,6 +13,8 @@ import InventoryView from './pages/InventoryView';   // New
 import UsersView from './pages/UsersView';           // New
 import StaffStatsView from './pages/StaffStatsView'; // New
 
+
+
 // Protected Route Wrapper
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user } = useAuth();
@@ -85,17 +87,21 @@ function App() {
                 </ProtectedRoute>
               } />
 
+
+
               <Route path="/admin/users" element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <UsersView />
                 </ProtectedRoute>
               } />
 
-              <Route path="/admin/staff" element={
+              <Route path="/admin/staff-stats" element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <StaffStatsView />
                 </ProtectedRoute>
               } />
+
+
 
             </Route>
           </Routes>

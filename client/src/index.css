@@ -762,3 +762,55 @@ table {
   justify-content: flex-end;
   gap: 10px;
 }
+
+/* Staff Stats View Responsiveness */
+.staff-grid-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+@media (max-width: 768px) {
+  .staff-view-container {
+    overflow-x: hidden;
+  }
+
+  .staff-grid-section {
+    display: flex;
+    flex-direction: column;
+    width: 95%;
+    margin: 0 auto;
+  }
+
+  .staff-grid-section .glass-panel {
+    padding: 15px !important;
+    width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+/* Kitchen Timer Alerts */
+@keyframes blink-red {
+  0% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+.timer-warning {
+  color: var(--warning) !important;
+  font-weight: bold;
+}
+
+.timer-critical {
+  color: var(--danger) !important;
+  font-weight: bold;
+  animation: blink-red 2s infinite;
+}

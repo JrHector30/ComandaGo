@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { MoreVertical, FileText, X, AlertCircle, Trash } from 'lucide-react';
+import { MoreVertical, FileText, X, AlertCircle, Trash, Download } from 'lucide-react';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 const CashCountTable = ({ onStatusChange }) => {
     // State for Global Status (Header Button)
@@ -15,8 +15,9 @@ const CashCountTable = ({ onStatusChange }) => {
     // UI State
     const [menuOpen, setMenuOpen] = useState(false);
     const [paloteoOpen, setPaloteoOpen] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
 
-    // 1. Fetch Current Status (For Button Logic)
+    // 1. Fetch Current Status
     const fetchStatus = () => {
         fetch('/api/cashier/balance')
             .then(res => res.json())
@@ -27,7 +28,7 @@ const CashCountTable = ({ onStatusChange }) => {
             .catch(err => console.error("Error fetching status:", err));
     };
 
-    // 2. Fetch History (For Table)
+    // 2. Fetch History
     const fetchHistory = (page = 1, date = '') => {
         let url = `/api/cashier/history?page=${page}&limit=5`;
         if (date) url += `&date=${date}`;
@@ -43,8 +44,7 @@ const CashCountTable = ({ onStatusChange }) => {
         fetchHistory(currentPage, filterDate);
 
         const interval = setInterval(() => {
-            fetchStatus(); // Keep status live
-            // We don't auto-refresh history to avoid UI jumps while paginating
+            fetchStatus();
         }, 10000);
 
         return () => clearInterval(interval);
@@ -54,7 +54,6 @@ const CashCountTable = ({ onStatusChange }) => {
     const handleToggleShift = () => {
         if (!currentStatus) return;
 
-        // If closing, confirm first
         if (currentStatus.estado === 'abierto') {
             if (!window.confirm("¿Estás seguro de cerrar caja? Asegúrate de que no haya cuentas pendientes.")) return;
         }
@@ -73,44 +72,114 @@ const CashCountTable = ({ onStatusChange }) => {
             })
             .then(() => {
                 fetchStatus();
-                fetchHistory(1, filterDate); // Refresh table and go to first page
+                fetchHistory(1, filterDate);
             })
             .catch(err => alert(err.message));
     };
 
-    // Date Formatter Helper
-    const formatDate = (dateString) => {
+    // Date Formatter
+    const formatDate = (dateString, includeTime = true) => {
         if (!dateString) return "--:--";
         const d = new Date(dateString);
         return d.toLocaleString('es-PE', {
             year: 'numeric', month: '2-digit', day: '2-digit',
-            hour: '2-digit', minute: '2-digit', second: '2-digit',
+            ...(includeTime ? { hour: '2-digit', minute: '2-digit', second: '2-digit' } : {}),
             hour12: false
         }).replace(',', '');
     };
 
-    const generatePDF = () => {
-        alert("Funcionalidad de PDF en mantenimiento para soporte de historial.");
+    // PDF GENERATION LOGIC
+    const generatePDF = async () => {
+        // Determine what to print. 
+        // If "currentStatus" is active, prioritize that? 
+        // Or if the user wants a report for a specific filtered day?
+        // REQUIREMENT: "Arqueo de Caja". Usually means the current closing report.
+        // We'll use 'currentStatus' (which contains all info for the latest/active session).
+
+        if (!currentStatus) return;
+        setIsGenerating(true);
+
+        try {
+            // Fetch fresh details just in case (optional, but using currentStatus should suffice if it has 'ventas')
+            // Actually, currentStatus from /api/cashier/balance ALREADY has 'ventas' with simple structure.
+            // But we need 'Mozo' which might be missing in the simple 'ventas' map in backend (let's check).
+            // The backend update I just did was for /api/cashier/arqueo/:id.
+            // Let's use THAT to be safe and get specific full details including Waiter.
+
+            const targetId = currentStatus.id;
+            const res = await fetch(`/api/cashier/arqueo/${targetId}`);
+            const fullData = await res.json();
+
+            const doc = new jsPDF();
+
+            // HEADER
+            doc.setFontSize(18);
+            doc.text("ComandaGo - Arqueo de Caja", 14, 20);
+
+            doc.setFontSize(11);
+            doc.setTextColor(100);
+            doc.text(`Fecha: ${formatDate(new Date())}`, 14, 28);
+            doc.text(`Estado: ${fullData.estado.toUpperCase()}`, 14, 34);
+
+            // SUMMARY SECTION
+            const startY = 45;
+            doc.setFillColor(240, 240, 240);
+            doc.rect(14, startY, 180, 25, 'F');
+
+            doc.setFontSize(12);
+            doc.setTextColor(0);
+            doc.text("Resumen Financiero", 18, startY + 8);
+
+            doc.setFontSize(10);
+            doc.text(`Total Ventas: S/. ${fullData.totalBruto?.toFixed(2) || '0.00'}`, 18, startY + 18);
+            doc.text(`Efectivo: S/. ${(fullData.ingresos?.efectivo || 0).toFixed(2)}`, 80, startY + 18);
+            doc.text(`Tarjetas: S/. ${(fullData.ingresos?.tarjeta || 0).toFixed(2)}`, 130, startY + 18);
+            doc.text(`Egresos: S/. ${(fullData.egresos || 0).toFixed(2)}`, 18, startY + 28); // If added later
+
+            // DETAILS TABLE
+            const tableRows = fullData.ventas?.map(v => [
+                formatDate(v.hora, true).split(' ')[1], // Time only
+                v.items.map(i => `${i.cantidad}x ${i.descripcion}`).join(', '), // Order summary
+                v.mozo || 'General',
+                v.metodo || 'Efectivo',
+                `S/. ${v.total.toFixed(2)}`
+            ]) || [];
+
+            autoTable(doc, {
+                startY: startY + 35,
+                head: [['Hora', 'Pedido', 'Mozo', 'Método', 'Monto']],
+                body: tableRows,
+                theme: 'grid',
+                headStyles: { fillColor: [40, 40, 40], textColor: 255 },
+                styles: { fontSize: 9 },
+                columnStyles: {
+                    0: { cellWidth: 20 },
+                    1: { cellWidth: 80 },
+                    4: { halign: 'right' }
+                }
+            });
+
+            // Save
+            const dateStr = new Date().toISOString().split('T')[0];
+            doc.save(`Arqueo_Caja_${dateStr}.pdf`);
+
+        } catch (e) {
+            console.error(e);
+            alert("Error generando PDF");
+        } finally {
+            setIsGenerating(false);
+        }
     };
 
-    // Paloteo Modal (Using Current Status for now)
+    // Paloteo Modal
     const PaloteoModal = () => {
         if (!paloteoOpen || !currentStatus) return null;
-
-        // TODO: This uses currentStatus. For history items, we'd need to fetch their details specifically or pass them in.
-        // For MVP, limiting 'Paloteo' to the current active session or latest is acceptable or needs backend support for specific ID.
-        // Let's use currentStatus for now.
         const data = currentStatus;
-
         const productCounts = {};
         if (data.ventas) {
             data.ventas.forEach(v => {
                 v.items.forEach(item => {
-                    if (productCounts[item.descripcion]) {
-                        productCounts[item.descripcion] += item.cantidad;
-                    } else {
-                        productCounts[item.descripcion] = item.cantidad;
-                    }
+                    productCounts[item.descripcion] = (productCounts[item.descripcion] || 0) + item.cantidad;
                 });
             });
         }
@@ -211,6 +280,18 @@ const CashCountTable = ({ onStatusChange }) => {
                 </div>
 
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    {/* PDF DOWNLOAD BUTTON */}
+                    <button
+                        className="glass-button"
+                        onClick={generatePDF}
+                        disabled={isGenerating}
+                        title="Descargar Reporte Actual"
+                        style={{ display: 'flex', alignItems: 'center', gap: 5 }}
+                    >
+                        <Download size={18} />
+                        {isGenerating ? '...' : ''}
+                    </button>
+
                     <input
                         type="date"
                         className="glass-input"
@@ -221,8 +302,8 @@ const CashCountTable = ({ onStatusChange }) => {
                             setCurrentPage(1);
                         }}
                     />
-
                     <button className="glass-button" onClick={() => fetchHistory(currentPage, filterDate)}>Refrescar</button>
+
 
                     <div style={{ position: 'relative' }}>
                         <button className="glass-button icon" onClick={() => setMenuOpen(!menuOpen)}>

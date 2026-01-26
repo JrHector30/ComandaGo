@@ -1,151 +1,290 @@
 import React, { useEffect, useState } from 'react';
+import { ArrowLeft, Trash, User, ChefHat, Calendar, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { Users, ChefHat, TrendingUp, DollarSign, Clock, ArrowLeft } from 'lucide-react';
+import {
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+    PieChart, Pie, Cell
+} from 'recharts';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const StaffStatsView = () => {
     const navigate = useNavigate();
     const [stats, setStats] = useState({ waiters: [], cooks: [] });
-    const [loading, setLoading] = useState(true);
+    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [loading, setLoading] = useState(false);
 
-    useEffect(() => {
-        fetch('/api/staff/stats')
+    const fetchStats = () => {
+        setLoading(true);
+        fetch(`/api/staff/stats?date=${date}`)
             .then(res => res.json())
-            .then(data => {
-                setStats(data);
-                setLoading(false);
-            })
-            .catch(err => {
-                console.error(err);
-                setLoading(false);
-            });
-    }, []);
-
-    if (loading) return <div className="glass-panel" style={{ padding: 20 }}>Cargando estadísticas...</div>;
-
-    // Helper for simple Bar Chart
-    const BarChart = ({ data, labelKey, valueKey, color, icon: Icon, unit = '' }) => {
-        const maxValue = Math.max(...data.map(d => d[valueKey]), 1);
-
-        return (
-            <div className="glass-panel" style={{ padding: 20, flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-                    <Icon size={24} color={color} />
-                    <h3>Rendimiento: {labelKey}</h3>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
-                    {data.map(item => (
-                        <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div style={{ width: 100, fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {item.nombre}
-                            </div>
-                            <div style={{ flex: 1, background: 'rgba(255,255,255,0.1)', borderRadius: 4, height: 24, position: 'relative' }}>
-                                <div style={{
-                                    width: `${(item[valueKey] / maxValue) * 100}%`,
-                                    background: color,
-                                    height: '100%',
-                                    borderRadius: 4,
-                                    transition: 'width 1s ease'
-                                }} />
-                            </div>
-                            <div style={{ width: 80, textAlign: 'right', fontWeight: 'bold' }}>
-                                {unit}{item[valueKey].toFixed(unit ? 2 : 0)}
-                            </div>
-                        </div>
-                    ))}
-                    {data.length === 0 && <p className="text-muted">No hay datos registrados.</p>}
-                </div>
-            </div>
-        );
+            .then(data => setStats(data))
+            .catch(err => console.error(err))
+            .finally(() => setLoading(false));
     };
 
-    return (
-        <div className="fade-in">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 30 }}>
-                <button className="glass-button" onClick={() => navigate('/')} style={{ padding: 8 }}>
-                    <ArrowLeft size={20} />
-                </button>
-                <h1 style={{ margin: 0 }}>Dashboard de Personal</h1>
-            </div>
+    useEffect(() => {
+        fetchStats();
+    }, [date]);
 
-            {/* Waiters Section */}
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 15 }}>
-                <Users size={24} color="var(--primary)" /> Rendimiento de Mozos
-            </h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20, marginBottom: 40 }}>
-                {/* Chart: Sales */}
-                <BarChart
-                    data={stats.waiters}
-                    labelKey="Ventas Totales"
-                    valueKey="totalSales"
-                    color="#51cf66"
-                    icon={DollarSign}
-                    unit="S/. "
-                />
-                {/* Table Details */}
-                <div className="glass-panel table-responsive" style={{ padding: 20, flex: 1 }}>
-                    <h3>Detalle de Atención</h3>
-                    <table style={{ width: '100%', marginTop: 15 }}>
-                        <thead>
-                            <tr>
-                                <th>Nombre</th>
-                                <th style={{ textAlign: 'center' }}>Mesas</th>
-                                <th style={{ textAlign: 'right' }}>Ventas</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {stats.waiters.map(w => (
-                                <tr key={w.id}>
-                                    <td>{w.nombre}</td>
-                                    <td style={{ textAlign: 'center' }}>{w.totalTables}</td>
-                                    <td style={{ textAlign: 'right' }}>S/. {w.totalSales.toFixed(2)}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+    const handleCleanDay = async () => {
+        if (!window.confirm(`⚠ PELIGRO:\n\n¿Estás seguro de ELIMINAR PERMANENTEMENTE todas las ventas del día ${date}?\n\nEsta acción NO se puede deshacer.`)) return;
+
+        try {
+            const res = await fetch(`/api/staff/stats/daily?date=${date}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (res.ok) {
+                alert(data.message);
+                fetchStats();
+            } else {
+                alert("Error: " + data.error);
+            }
+        } catch (e) {
+            alert("Error de conexión");
+        }
+    };
+
+    const handleExportPDF = () => {
+        const doc = new jsPDF();
+
+        // Header
+        doc.setFontSize(18);
+        doc.text("ComandaGo - Reporte de Personal", 14, 20);
+        doc.setFontSize(12);
+        doc.text(`Fecha: ${date}`, 14, 28);
+
+        // Waiters Table
+        doc.setFontSize(14);
+        doc.text("Rendimiento de Mozos", 14, 40);
+
+        const waiterRows = stats.waiters.map(w => [
+            w.nombre,
+            w.totalTables,
+            `S/. ${w.totalSales.toFixed(2)}`
+        ]);
+
+        autoTable(doc, {
+            startY: 45,
+            head: [['Nombre', 'Pedidos', 'Venta Total']],
+            body: waiterRows,
+            theme: 'grid',
+            headStyles: { fillColor: [40, 167, 69] }
+        });
+
+        // Cooks Table
+        const finalY = doc.lastAutoTable.finalY + 15;
+        doc.text("Rendimiento de Cocina", 14, finalY);
+
+        const cookRows = stats.cooks.map(c => [
+            c.nombre,
+            c.totalDishes,
+            c.avgTimeMin > 0 ? `${c.avgTimeMin.toFixed(1)} min` : '-'
+        ]);
+
+        autoTable(doc, {
+            startY: finalY + 5,
+            head: [['Nombre', 'Platos', 'Tiempo Prom.']],
+            body: cookRows,
+            theme: 'grid',
+            headStyles: { fillColor: [255, 193, 7] }
+        });
+
+        doc.save(`Reporte_Personal_${date}.pdf`);
+    };
+
+    // Calculate Totals
+    const totalSales = stats.waiters.reduce((acc, w) => acc + w.totalSales, 0);
+    const totalOrders = stats.waiters.reduce((acc, w) => acc + w.totalTables, 0);
+
+    // Filter out zero values for cleaner charts
+    const waiterData = stats.waiters.filter(w => w.totalSales > 0);
+    const cookData = stats.cooks.filter(c => c.totalDishes > 0);
+
+    const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
+
+    return (
+        <div style={{ padding: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <button className="glass-button" onClick={() => navigate('/')} style={{ padding: 8 }}>
+                        <ArrowLeft size={20} />
+                    </button>
+                    <h1>Reporte de Personal</h1>
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <div className="glass-panel" style={{ padding: '5px 10px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <Calendar size={18} />
+                        <input
+                            type="date"
+                            value={date}
+                            onChange={(e) => setDate(e.target.value)}
+                            style={{ background: 'transparent', border: 'none', color: 'inherit', fontFamily: 'inherit', fontSize: '1rem' }}
+                        />
+                    </div>
+
+                    <button
+                        className="glass-button"
+                        onClick={handleExportPDF}
+                        title="Exportar Reporte PDF"
+                        style={{ display: 'flex', alignItems: 'center', gap: 5 }}
+                    >
+                        <FileText size={18} /> PDF
+                    </button>
+
+                    <button
+                        className="glass-button"
+                        style={{ borderColor: '#dc3545', color: '#dc3545', gap: 5 }}
+                        onClick={handleCleanDay}
+                    >
+                        <Trash size={18} /> Limpiar Jornada
+                    </button>
                 </div>
             </div>
 
-            {/* Cooks Section */}
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 15 }}>
-                <ChefHat size={24} color="var(--warning)" /> Rendimiento de Cocina
-            </h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
-                {/* Chart: Dishes Config */}
-                <BarChart
-                    data={stats.cooks}
-                    labelKey="Platos Preparados"
-                    valueKey="totalDishes"
-                    color="#fcc419"
-                    icon={TrendingUp}
-                />
+            {/* Summary Cards */}
+            <div className="responsive-grid" style={{ marginBottom: 30, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20 }}>
+                <div className="glass-panel" style={{ padding: 20, textAlign: 'center' }}>
+                    <h3 className="text-muted" style={{ margin: 0 }}>Venta Total</h3>
+                    <h1 style={{ color: 'var(--success)', margin: '10px 0' }}>S/. {totalSales.toFixed(2)}</h1>
+                </div>
+                <div className="glass-panel" style={{ padding: 20, textAlign: 'center' }}>
+                    <h3 className="text-muted" style={{ margin: 0 }}>Pedidos Atendidos</h3>
+                    <h1 style={{ color: 'var(--primary)', margin: '10px 0' }}>{totalOrders}</h1>
+                </div>
+            </div>
 
-                {/* Table Details + Time */}
-                <div className="glass-panel table-responsive" style={{ padding: 20, flex: 1 }}>
-                    <h3>Eficiencia</h3>
-                    <table style={{ width: '100%', marginTop: 15 }}>
-                        <thead>
-                            <tr>
-                                <th>Cocinero</th>
-                                <th style={{ textAlign: 'center' }}>Platos</th>
-                                <th style={{ textAlign: 'right' }}>Tiempo Prom.</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {stats.cooks.map(c => (
-                                <tr key={c.id}>
-                                    <td>{c.nombre}</td>
-                                    <td style={{ textAlign: 'center' }}>{c.totalDishes}</td>
-                                    <td style={{ textAlign: 'right' }}>
-                                        {c.avgTimeMin > 0 ? (
-                                            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5 }}>
-                                                <Clock size={14} /> {c.avgTimeMin.toFixed(1)} min
-                                            </span>
-                                        ) : '--'}
-                                    </td>
+            {/* CHARTS SECTION */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 20, marginBottom: 30 }}>
+
+                {/* Waiter Sales Chart */}
+                <div className="glass-panel" style={{ padding: 20, height: 350 }}>
+                    <h3 style={{ textAlign: 'center', marginBottom: 20 }}>Ventas por Mozo</h3>
+                    {waiterData.length === 0 ? (
+                        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+                            Sin datos de ventas
+                        </div>
+                    ) : (
+                        <ResponsiveContainer width="100%" height="90%">
+                            <BarChart data={waiterData}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                <XAxis dataKey="nombre" stroke="var(--text-muted)" />
+                                <YAxis stroke="var(--text-muted)" />
+                                <Tooltip
+                                    contentStyle={{ backgroundColor: '#333', borderColor: '#555', color: '#fff' }}
+                                    formatter={(value) => [`S/. ${value.toFixed(2)}`, 'Ventas']}
+                                />
+                                <Bar dataKey="totalSales" name="Ventas" fill="#00C49F" radius={[5, 5, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    )}
+                </div>
+
+                {/* Kitchen Efficiency Chart */}
+                <div className="glass-panel" style={{ padding: 20, height: 350 }}>
+                    <h3 style={{ textAlign: 'center', marginBottom: 20 }}>Platos por Cocinero</h3>
+                    {cookData.length === 0 ? (
+                        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+                            Sin datos de cocina
+                        </div>
+                    ) : (
+                        <ResponsiveContainer width="100%" height="90%">
+                            <PieChart>
+                                <Pie
+                                    data={cookData}
+                                    cx="50%"
+                                    cy="50%"
+                                    labelLine={false}
+                                    label={({ nombre, percent }) => `${nombre} (${(percent * 100).toFixed(0)}%)`}
+                                    outerRadius={80}
+                                    fill="#8884d8"
+                                    dataKey="totalDishes"
+                                    nameKey="nombre"
+                                >
+                                    {cookData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip
+                                    contentStyle={{ backgroundColor: '#333', borderColor: '#555', color: '#fff' }}
+                                    formatter={(value) => [value, "Platos Preparados"]}
+                                />
+                                <Legend />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    )}
+                </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 20 }}>
+                {/* Waiters Table */}
+                <div className="glass-panel" style={{ padding: 20 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 15 }}>
+                        <User size={24} style={{ color: 'var(--primary)' }} />
+                        <h2>Detalle Mozos</h2>
+                    </div>
+
+                    <div className="table-responsive">
+                        <table style={{ width: '100%' }}>
+                            <thead>
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th style={{ textAlign: 'center' }}>Pedidos</th>
+                                    <th style={{ textAlign: 'right' }}>Venta Total</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {stats.waiters.length === 0 ? (
+                                    <tr><td colSpan="3" className="text-center text-muted">No hay datos</td></tr>
+                                ) : (
+                                    stats.waiters.map(w => (
+                                        <tr key={w.id}>
+                                            <td>{w.nombre}</td>
+                                            <td style={{ textAlign: 'center' }}>{w.totalTables}</td>
+                                            <td style={{ textAlign: 'right', color: 'var(--success)', fontWeight: 'bold' }}>
+                                                S/. {w.totalSales.toFixed(2)}
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* Cooks Table */}
+                <div className="glass-panel" style={{ padding: 20 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 15 }}>
+                        <ChefHat size={24} style={{ color: 'var(--warning)' }} />
+                        <h2>Detalle Cocina</h2>
+                    </div>
+
+                    <div className="table-responsive">
+                        <table style={{ width: '100%' }}>
+                            <thead>
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th style={{ textAlign: 'center' }}>Platos</th>
+                                    <th style={{ textAlign: 'center' }}>Tiempo Prom.</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {stats.cooks.length === 0 ? (
+                                    <tr><td colSpan="3" className="text-center text-muted">No hay datos</td></tr>
+                                ) : (
+                                    stats.cooks.map(c => (
+                                        <tr key={c.id}>
+                                            <td>{c.nombre}</td>
+                                            <td style={{ textAlign: 'center' }}>{c.totalDishes}</td>
+                                            <td style={{ textAlign: 'center' }}>
+                                                {c.avgTimeMin > 0 ? `${c.avgTimeMin.toFixed(1)} min` : '-'}
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
