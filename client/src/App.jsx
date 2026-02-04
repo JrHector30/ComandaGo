@@ -12,6 +12,7 @@ import CategoriesView from './pages/CategoriesView'; // New
 import InventoryView from './pages/InventoryView';   // New
 import UsersView from './pages/UsersView';           // New
 import StaffStatsView from './pages/StaffStatsView'; // New
+import SettingsView from './pages/SettingsView';     // New
 
 
 
@@ -98,6 +99,12 @@ function App() {
               <Route path="/admin/staff-stats" element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <StaffStatsView />
+                </ProtectedRoute>
+              } />
+
+              <Route path="/settings" element={
+                <ProtectedRoute allowedRoles={['admin', 'caja', 'mozo', 'cocina']}>
+                  <SettingsView />
                 </ProtectedRoute>
               } />
 

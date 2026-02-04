@@ -150,16 +150,17 @@ const UsersView = () => {
             </div>
 
             {/* Search */}
-            <div className="glass-panel" style={{ padding: '10px 15px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Search size={20} className="text-muted" />
-                <input
-                    type="text"
-                    placeholder="Buscar usuarios..."
-                    className="glass-input"
-                    style={{ border: 'none', background: 'transparent', padding: 0 }}
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
+            <div style={{ marginBottom: 20 }}>
+                <div className="search-container">
+                    <Search size={22} className="text-muted" />
+                    <input
+                        type="text"
+                        placeholder="Buscar usuarios..."
+                        className="search-input"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
             </div>
 
             {/* Grid */}

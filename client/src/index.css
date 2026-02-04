@@ -1,55 +1,128 @@
 :root {
-  /* Dark Mode (Default) */
-  --bg-dark: #121212;
-  --bg-card: rgba(30, 30, 30, 0.6);
-  --bg-surface: #1e1e1e;
-  /* Card/Modal Background */
-  --glass-border: rgba(255, 255, 255, 0.1);
+  /* DEFAULT: CARBONO (OLED BLACK) - Fallback for everything */
+  --bg-primary: #000000;
+  --bg-secondary: #0d0d0d;
+  --bg-surface: #111111;
+  --glass-border: rgba(255, 255, 255, 0.15);
 
-  --primary: #ff6b6b;
-  --primary-hover: #fa5252;
+  --primary: #F0544F;
+  --primary-hover: #D8433E;
+  --accent: #F0544F;
 
   --text-main: #ffffff;
-  --text-muted: #a0a0a0;
-  --text-inverse: #121212;
+  --text-muted: #888888;
+  --text-inverse: #000000;
 
-  --input-bg: rgba(0, 0, 0, 0.2);
+  --input-bg: #111111;
   --input-text: #ffffff;
 
-  /* Identity Colors (Invariant) */
-  --success: #51cf66;
+  --success: #22c55e;
   --warning: #fcc419;
   --danger: #ff6b6b;
 
-  --table-header-bg: rgba(255, 255, 255, 0.05);
-  --table-row-border: rgba(255, 255, 255, 0.05);
-  --item-hover: rgba(255, 255, 255, 0.05);
+  --table-header-bg: rgba(255, 255, 255, 0.1);
+  --table-row-border: rgba(255, 255, 255, 0.1);
+  --item-hover: rgba(255, 255, 255, 0.1);
 }
 
-[data-theme="light"] {
-  /* Light Mode Overrides */
-  --bg-dark: #f0f2f5;
-  /* Light Gray Background */
-  --bg-card: rgba(255, 255, 255, 0.9);
-  /* White Glass */
-  --bg-surface: #ffffff;
-  /* Modal/Card Surface */
-  --glass-border: rgba(0, 0, 0, 0.1);
+/* THEME CLASSES */
 
-  --primary: #ff6b6b;
-  /* Keep brand color */
+.theme-green {
+  --bg-primary: #05100b;
+  /* Deep Green Black */
+  --bg-secondary: #0a1f16;
+  --bg-surface: #0f2b1f;
+  --glass-border: rgba(255, 255, 255, 0.15);
+  --accent: #00704A;
+  /* Starbucks Green */
+  --primary: #00704A;
+  --primary-hover: #005c3d;
+  --text-main: #ffffff;
+}
 
-  --text-main: #121212;
-  /* Inverted Text */
-  --text-muted: #6b7280;
-  --text-inverse: #ffffff;
+.theme-red {
+  --bg-primary: #1a0505;
+  --bg-secondary: #2d0a0a;
+  --bg-surface: #2d0a0a;
+  --glass-border: rgba(240, 84, 79, 0.3);
+  --accent: #ff4d4d;
+  --primary: #F0544F;
+  --text-main: #ffebeb;
+  --text-muted: #d19a9a;
+  --input-bg: rgba(50, 10, 10, 0.5);
+  --table-header-bg: rgba(240, 84, 79, 0.1);
+}
 
-  --input-bg: #f9fafb;
-  --input-text: #121212;
+.theme-blue {
+  --bg-primary: #020617;
+  --bg-secondary: #0f172a;
+  --bg-surface: #1e293b;
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --accent: #3b82f6;
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+}
 
-  --table-header-bg: rgba(0, 0, 0, 0.05);
-  --table-row-border: rgba(0, 0, 0, 0.1);
-  --item-hover: rgba(0, 0, 0, 0.05);
+/* LIGHT MODE OVERRIDES - Applies on top of any theme */
+.mode-light {
+  /* Force light backgrounds */
+  --bg-primary: #ffffff !important;
+  --bg-secondary: rgba(255, 255, 255, 0.8) !important;
+  --bg-surface: #ffffff !important;
+
+  /* Force dark text */
+  --text-main: #0f172a !important;
+  --text-muted: #64748b !important;
+  --text-inverse: #ffffff !important;
+
+  /* Adjust borders for light mode visibility */
+  --glass-border: rgba(0, 0, 0, 0.1) !important;
+  --table-header-bg: rgba(0, 0, 0, 0.05) !important;
+  --table-row-border: rgba(0, 0, 0, 0.1) !important;
+  --item-hover: rgba(0, 0, 0, 0.05) !important;
+
+  /* Inputs need to be dark text on light background */
+  --input-bg: rgba(0, 0, 0, 0.05) !important;
+  --input-text: #000000 !important;
+  /* Force Black */
+}
+
+/* Ensure glass panels look right in light mode */
+/* Ensure glass panels look right in light mode */
+.mode-light .glass-panel {
+  /* background: removed to allow inline styles; uses --bg-secondary by default via base .glass-panel rule */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--primary) !important;
+  /* Force colored border in light mode */
+}
+
+.mode-light .glass-input::placeholder {
+  color: #64748b !important;
+  /* Dark Gray for placeholder */
+  opacity: 1;
+}
+
+.mode-light .text-muted {
+  color: #4b5563 !important;
+  /* Darker Gray for muted text */
+}
+
+.mode-light .glass-button {
+  color: var(--text-main);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.mode-light .glass-button:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.mode-light .glass-button.primary {
+  color: white !important;
+  /* Keep primary buttons white text basically always */
+  background: var(--primary) !important;
+  /* Use the THEME's primary color */
 }
 
 /* Modals */
@@ -57,57 +130,65 @@
   background: var(--bg-surface);
   color: var(--text-main);
   border: 1px solid var(--glass-border);
-  /* ... rest of modal styles ... */
-  border-radius: 16px;
-  padding: 25px;
+  border-radius: 20px;
+  padding: 30px;
   max-width: 500px;
   width: 100%;
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   animation: fadeIn 0.3s ease-out;
 }
 
 body {
   margin: 0;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: var(--bg-dark);
+  font-family: 'Poppins', system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-primary);
+  /* CHANGED: Use variable to allow override */
   color: var(--text-main);
   -webkit-font-smoothing: antialiased;
   transition: background-color 0.3s, color 0.3s;
 }
 
+html {
+  background-color: var(--bg-primary);
+  /* CHANGED: Use variable to allow override */
+}
+
 /* Glassmorphism Utilities */
 .glass-panel {
-  background: var(--bg-card);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--glass-border);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+  background: var(--bg-secondary);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  /* More visible border */
+  border-radius: 20px;
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.4);
   transition: background 0.3s, border-color 0.3s;
 }
 
 .glass-button {
-  background: rgba(128, 128, 128, 0.1);
+  background: rgba(255, 255, 255, 0.03);
   /* Neutral transparent base */
   border: 1px solid var(--glass-border);
   color: var(--text-main);
   padding: 10px 20px;
-  border-radius: 8px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   font-weight: 500;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  font-family: 'Poppins', sans-serif;
 }
 
 .glass-button:hover {
   background: var(--item-hover);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .glass-button.primary {
@@ -153,14 +234,20 @@ body {
 }
 
 .sidebar {
-  width: 250px;
+  /* width: 250px; REMOVE FIXED WIDTH */
   padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 10px;
   border-right: 1px solid var(--glass-border);
-  background: var(--bg-card);
-  /* Ensure sidebar follows theme */
+  background: var(--bg-secondary);
+  transition: width 0.3s ease-in-out, padding 0.3s ease-in-out;
+  overflow: visible;
+  /* Allows toggle button to overlap if needed, or tooltip */
+}
+
+.sidebar.collapsed {
+  padding: 20px 10px;
 }
 
 .main-content {
@@ -440,21 +527,45 @@ body {
   background: var(--primary-hover);
 }
 
-.glass-input {
-  background: rgba(0, 0, 0, 0.2);
+/* Standardized Search Bar */
+.search-container {
+  height: 50px;
+  border-radius: 25px;
+  padding: 0 20px;
+  background: var(--bg-surface);
   border: 1px solid var(--glass-border);
-  color: white;
-  padding: 12px;
-  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   width: 100%;
-  box-sizing: border-box;
-  outline: none;
-  font-size: 1rem;
 }
 
-.glass-input:focus {
+.search-container:focus-within {
   border-color: var(--primary);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15), 0 0 0 2px rgba(var(--primary-rgb), 0.2);
+  transform: translateY(-1px);
 }
+
+.search-input {
+  border: none;
+  background: transparent;
+  flex: 1;
+  height: 100%;
+  outline: none;
+  color: var(--text-main);
+  font-size: 1.1rem;
+  /* Slightly larger text */
+  font-family: inherit;
+}
+
+.search-input::placeholder {
+  color: var(--text-muted);
+  font-weight: 300;
+}
+
+
 
 /* Layout Utilities */
 .app-container {
@@ -727,7 +838,7 @@ table {
 }
 
 .modal-content {
-  background: #1e1e1e;
+  background: var(--bg-surface);
   border: 1px solid var(--glass-border);
   border-radius: 16px;
   padding: 25px;

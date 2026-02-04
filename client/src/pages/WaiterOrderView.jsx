@@ -1,17 +1,21 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Minus, Send, Trash2, ArrowLeft, Search, Image as ImageIcon, FileText, Info, X } from 'lucide-react';
 
 const WaiterOrderView = () => {
     const { tableId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation(); // For passed state (new table)
     const { user } = useAuth();
 
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
-    const [cart, setCart] = useState([]); // [{ tempId, platoId, cantidad, nombre, precio, observacion }]
+    const [cart, setCart] = useState([]);
     const [loading, setLoading] = useState(false);
+
+    // Table Info
+    const [tableInfo, setTableInfo] = useState({ numero: tableId, comensales: location.state?.comensales || 1 });
 
     // UI State
     const [selectedCategoryId, setSelectedCategoryId] = useState(null);
@@ -20,17 +24,31 @@ const WaiterOrderView = () => {
 
     useEffect(() => {
         const fetchData = async () => {
-            const [prodRes, catRes] = await Promise.all([
+            const [prodRes, catRes, tableRes] = await Promise.all([
                 fetch('/api/products'),
-                fetch('/api/categories')
+                fetch('/api/categories'),
+                fetch(`/api/tables`) // We fetch all to find ours, or specific if endpoint existed
             ]);
             const p = await prodRes.json();
             const c = await catRes.json();
+            const tList = await tableRes.json();
+
             setProducts(p);
             setCategories(c);
+
+            // Find current table info
+            const currentTable = tList.find(t => t.id === parseInt(tableId));
+            if (currentTable) {
+                // If occupied, use DB count. If free (new), use state or default.
+                const dbComensales = currentTable.comandas?.[0]?.comensales;
+                setTableInfo({
+                    numero: currentTable.numero,
+                    comensales: dbComensales || location.state?.comensales || 1
+                });
+            }
         };
         fetchData();
-    }, []);
+    }, [tableId, location.state]);
 
     const addToCart = (product) => {
         setCart(prev => {
@@ -91,6 +109,7 @@ const WaiterOrderView = () => {
                 body: JSON.stringify({
                     mesaId: parseInt(tableId),
                     usuarioId: user.id,
+                    comensales: tableInfo.comensales, // Send captured count
                     detalles: cart.map(item => ({
                         platoId: item.platoId,
                         cantidad: item.cantidad,
@@ -131,13 +150,12 @@ const WaiterOrderView = () => {
                     <button onClick={() => navigate('/tables')} className="glass-button" style={{ height: 40, width: 40, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <ArrowLeft size={20} />
                     </button>
-                    <div className="glass-panel" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, padding: '0 15px', height: 40, borderRadius: 20 }}>
-                        <Search size={18} className="text-muted" />
+                    <div className="search-container">
+                        <Search size={22} className="text-muted" />
                         <input
                             type="text"
                             placeholder="Buscar productos..."
-                            className="glass-input"
-                            style={{ border: 'none', background: 'transparent', padding: 0 }}
+                            className="search-input"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
@@ -168,7 +186,7 @@ const WaiterOrderView = () => {
                                 className={`glass-panel category-card`}
                                 style={{
                                     background: selectedCategoryId === cat.id ? 'var(--primary)' : cat.color,
-                                    color: selectedCategoryId === cat.id ? 'white' : '#333', // Assuming light pastel colors for cats
+                                    color: 'var(--text-main)',
                                     cursor: 'pointer', padding: 15, display: 'flex', flexDirection: 'column', gap: 5,
                                     transition: 'all 0.2s', border: 'none'
                                 }}
@@ -286,7 +304,7 @@ const WaiterOrderView = () => {
             <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', padding: 20, height: '100%' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                     <div>
-                        <h2>Mesa {tableId}</h2>
+                        <h2>Mesa {tableInfo.numero} - {tableInfo.comensales} Personas</h2>
                         <span className="text-muted">{user?.nombre || 'Mozo'}</span>
                     </div>
                     <div className="glass-button" style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
@@ -315,7 +333,7 @@ const WaiterOrderView = () => {
                                         </div>
                                         <div>
                                             <div style={{ fontWeight: 500 }}>{item.nombre}</div>
-                                            <div style={{ fontSize: '0.8rem', color: '#aaa' }}>S/. {(item.precio * item.cantidad).toFixed(2)}</div>
+                                            <div className="text-muted" style={{ fontSize: '0.8rem' }}>S/. {(item.precio * item.cantidad).toFixed(2)}</div>
                                         </div>
                                     </div>
                                     <div style={{ textAlign: 'right', display: 'flex', gap: 5 }}>
@@ -338,16 +356,13 @@ const WaiterOrderView = () => {
                                     <div style={{ marginTop: 8, paddingLeft: 0 }}>
                                         <input
                                             type="text"
-                                            placeholder="📝 Nota... (Ej: Sin cebolla)"
+                                            placeholder="📝 Nota..."
                                             className="glass-input"
                                             style={{
-                                                border: '1px solid rgba(255,255,255,0.1)',
-                                                background: 'rgba(0,0,0,0.2)',
                                                 padding: '5px 10px',
                                                 fontSize: '0.85rem',
                                                 width: '100%',
-                                                borderRadius: 5,
-                                                color: '#fff'
+                                                borderRadius: 5
                                             }}
                                             value={item.observacion || ''}
                                             onChange={(e) => updateObservation(item.tempId, e.target.value)}
@@ -360,7 +375,7 @@ const WaiterOrderView = () => {
                 </div>
 
                 <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, color: '#aaa' }}>
+                    <div className="text-muted" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
                         <span>Subtotal</span>
                         <span>S/. {cart.reduce((sum, i) => sum + (i.precio * i.cantidad), 0).toFixed(2)}</span>
                     </div>

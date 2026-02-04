@@ -62,6 +62,7 @@ model Comanda {
   usuario   User             @relation(fields: [usuarioId], references: [id])
   fecha     DateTime         @default(now())
   estado    String           @default("pendiente") // pendiente, enviada, preparando, lista, entregada, cerrada
+  comensales Int             @default(1)
   
   // Payment Fields
   metodoPago    String?   // efectivo, tarjeta, yape

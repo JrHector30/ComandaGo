@@ -100,7 +100,12 @@ const StaffStatsView = () => {
     const waiterData = stats.waiters.filter(w => w.totalSales > 0);
     const cookData = stats.cooks.filter(c => c.totalDishes > 0);
 
-    const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
+    // Paletas de colores distintivas
+    // Mozos: Tonos fríos (Azules, Celestes, Turquesas) - Representan servicio/atención
+    const WAITER_COLORS = ['#0ea5e9', '#3b82f6', '#22d3ee', '#2dd4bf', '#6366f1', '#8b5cf6', '#06b6d4', '#60a5fa'];
+
+    // Cocineros: Tonos cálidos (Rojos, Naranjas, Amarillos) - Representan calor/cocina
+    const COOK_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#dc2626', '#ea580c', '#b91c1c', '#d97706'];
 
     return (
         <div style={{ padding: 20 }}>
@@ -174,7 +179,11 @@ const StaffStatsView = () => {
                                     contentStyle={{ backgroundColor: '#333', borderColor: '#555', color: '#fff' }}
                                     formatter={(value) => [`S/. ${value.toFixed(2)}`, 'Ventas']}
                                 />
-                                <Bar dataKey="totalSales" name="Ventas" fill="#00C49F" radius={[5, 5, 0, 0]} />
+                                <Bar dataKey="totalSales" name="Ventas" radius={[5, 5, 0, 0]}>
+                                    {waiterData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={WAITER_COLORS[index % WAITER_COLORS.length]} />
+                                    ))}
+                                </Bar>
                             </BarChart>
                         </ResponsiveContainer>
                     )}
@@ -202,7 +211,7 @@ const StaffStatsView = () => {
                                     nameKey="nombre"
                                 >
                                     {cookData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        <Cell key={`cell-${index}`} fill={COOK_COLORS[index % COOK_COLORS.length]} />
                                     ))}
                                 </Pie>
                                 <Tooltip

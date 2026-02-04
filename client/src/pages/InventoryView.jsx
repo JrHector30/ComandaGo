@@ -249,14 +249,13 @@ const InventoryView = () => {
                 </button>
             </div>
 
-            <div className="glass-panel" style={{ marginBottom: 20, display: 'flex', gap: 15, padding: 15 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
-                    <Search size={20} className="text-muted" />
+            <div className="glass-panel" style={{ marginBottom: 20, display: 'flex', gap: 15, padding: 15, alignItems: 'center' }}>
+                <div className="search-container" style={{ flex: 1 }}>
+                    <Search size={22} className="text-muted" />
                     <input
                         type="text"
                         placeholder="Buscar producto..."
-                        className="glass-input"
-                        style={{ border: 'none', background: 'transparent', padding: 0 }}
+                        className="search-input"
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
                     />

@@ -484,7 +484,47 @@ app.get('/api/orders', async (req, res) => {
         },
         orderBy: { fecha: 'asc' }
     });
+
+    // Hotfix: Manually fetch 'comensales' since Prisma Client is outdated
+    for (const order of orders) {
+        try {
+            const raw = await prisma.$queryRawUnsafe(`SELECT comensales FROM Comanda WHERE id = ${order.id}`);
+            if (raw[0]) order.comensales = raw[0].comensales;
+        } catch (e) {
+            console.error("Error fetching comensales raw:", e.message);
+        }
+    }
+
     res.json(orders);
+});
+
+// 5.1 Tables Endpoint (Modified for Comensales)
+app.get('/api/tables', async (req, res) => {
+    try {
+        const tables = await prisma.mesa.findMany({
+            include: {
+                comandas: {
+                    where: { estado: { not: 'cerrada' } }, // Only active
+                    include: { usuario: true, detalles: true }
+                }
+            }
+        });
+
+        // Hotfix: Manually fetch 'comensales' for active orders
+        for (const t of tables) {
+            if (t.comandas.length > 0) {
+                try {
+                    const raw = await prisma.$queryRawUnsafe(`SELECT comensales FROM Comanda WHERE id = ${t.comandas[0].id}`);
+                    if (raw[0]) t.comandas[0].comensales = raw[0].comensales;
+                } catch (e) {
+                    // Ignore if column missing (safe fallback)
+                }
+            }
+        }
+        res.json(tables);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
 // Kitchen Queue Endpoint (Item-based)
@@ -521,6 +561,7 @@ app.post('/api/orders', async (req, res) => {
                 mesaId: parseInt(mesaId),
                 usuarioId: parseInt(usuarioId),
                 estado: 'enviada',
+                // comensales: parseInt(req.body.comensales || 1), // Temporarily disabled until server restart
                 detalles: {
                     create: detalles.map(d => ({
                         platoId: d.platoId,
@@ -570,6 +611,16 @@ app.post('/api/orders', async (req, res) => {
                     }
                 });
             }
+        }
+    }
+
+    // HOTFIX: Manually save comensales using Raw Query (Bypasses outdated Prisma Client)
+    if (req.body.comensales) {
+        try {
+            await prisma.$executeRawUnsafe(`UPDATE Comanda SET comensales = ${parseInt(req.body.comensales)} WHERE id = ${order.id}`);
+            order.comensales = parseInt(req.body.comensales); // Update response object
+        } catch (e) {
+            console.error("Error saving comensales raw:", e.message);
         }
     }
 
@@ -660,11 +711,14 @@ app.put('/api/orders/details/:id', async (req, res) => {
 app.get('/api/staff/stats', async (req, res) => {
     const { date } = req.query; // Expect YYYY-MM-DD
     try {
-        // Date Logic
+        // Date Logic (Fixed for Peru Time UTC-5)
         let dateFilter = {};
         if (date) {
-            const start = new Date(`${date}T00:00:00`);
-            const end = new Date(`${date}T23:59:59`);
+            // Convert YYYY-MM-DD to ISO range in UTC-5
+            // 00:00:00 Peru = 05:00:00 UTC
+            const start = new Date(`${date}T00:00:00.000-05:00`);
+            const end = new Date(`${date}T23:59:59.999-05:00`);
+
             dateFilter = {
                 fecha: {
                     gte: start,
@@ -720,8 +774,8 @@ app.get('/api/staff/stats', async (req, res) => {
                         // If 'fechaPreparacion' exists:
                         ...(date ? {
                             fechaPreparacion: {
-                                gte: new Date(`${date}T00:00:00`),
-                                lte: new Date(`${date}T23:59:59`)
+                                gte: new Date(`${date}T00:00:00.000-05:00`),
+                                lte: new Date(`${date}T23:59:59.999-05:00`)
                             }
                         } : {})
                     }
@@ -773,8 +827,9 @@ app.delete('/api/staff/stats/daily', async (req, res) => {
     if (!date) return res.status(400).json({ error: "Date is required" });
 
     try {
-        const start = new Date(`${date}T00:00:00`);
-        const end = new Date(`${date}T23:59:59`);
+        // UTC-5 Range for delete
+        const start = new Date(`${date}T00:00:00.000-05:00`);
+        const end = new Date(`${date}T23:59:59.999-05:00`);
 
         // 1. Delete Details first (Cascade typically handles this but explicit is safer for logic)
         // Find IDs first? Or deleteMany with relation filter?

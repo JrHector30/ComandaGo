@@ -2,19 +2,33 @@ import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { LogOut, Grid, ChefHat, DollarSign, User, Sun, Moon, Menu, X } from 'lucide-react';
+import { LogOut, Grid, ChefHat, DollarSign, User, Sun, Moon, Menu, X, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
 
 const DashboardLayout = () => {
     const { user, logout } = useAuth();
-    const { theme, toggleTheme } = useTheme();
+    const { theme, mode, toggleMode } = useTheme();
     const navigate = useNavigate();
     const [mobileOpen, setMobileOpen] = useState(false);
+    const [collapsed, setCollapsed] = useState(false);
 
     const handleLogout = () => {
         setMobileOpen(false);
         logout();
         navigate('/login');
     };
+
+    const navLinkStyle = ({ isActive }) => ({
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        textDecoration: 'none',
+        justifyContent: collapsed ? 'center' : 'flex-start',
+        padding: collapsed ? '10px' : '10px 20px',
+        width: '100%',
+        boxSizing: 'border-box'
+    });
+
+    const navLinkClass = ({ isActive }) => `glass-button ${isActive ? 'primary' : ''}`;
 
     return (
         <div className="app-container">
@@ -32,8 +46,16 @@ const DashboardLayout = () => {
                 </div>
             </div>
 
-            {/* Sidebar (Drawer on mobile, Static on Desktop) */}
-            <aside className={`sidebar glass-panel ${mobileOpen ? 'mobile-open' : ''}`} style={{ borderRadius: 0, border: 0 }}>
+            {/* Sidebar */}
+            <aside
+                className={`sidebar glass-panel ${mobileOpen ? 'mobile-open' : ''} ${collapsed ? 'collapsed' : ''}`}
+                style={{
+                    borderRadius: 0,
+                    border: 0,
+                    width: collapsed ? 80 : 250,
+                    transition: 'width 0.3s ease-in-out',
+                }}
+            >
                 {/* Mobile Close Button */}
                 <div className="mobile-sidebar-header" style={{ display: 'none', justifyContent: 'space-between', alignItems: 'center', padding: '0 0 20px 0' }}>
                     <h2 style={{ margin: 0, color: 'var(--primary)' }}>ComandaGo</h2>
@@ -42,60 +64,68 @@ const DashboardLayout = () => {
                     </button>
                 </div>
 
-                {/* Desktop Header (Hidden on mobile generally, but we keep it for desktop identity) */}
-                <div className="desktop-sidebar-header" style={{ marginBottom: 20, textAlign: 'center' }}>
-                    <h2 style={{ color: 'var(--primary)', marginBottom: 5, fontSize: '1.5rem', cursor: 'pointer' }} onClick={() => window.location.href = '/'}>ComandaGo</h2>
-                    <div className="badge" style={{ background: 'var(--item-hover)', color: 'var(--text-main)', display: 'inline-block' }}>{user?.rol}</div>
+                {/* Desktop Header & Toggle */}
+                <div className="desktop-sidebar-header" style={{ marginBottom: 20, textAlign: 'center', position: 'relative' }}>
+
+                    {!collapsed && (
+                        <>
+                            <h2 style={{ color: 'var(--primary)', marginBottom: 5, fontSize: '1.5rem', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden' }} onClick={() => window.location.href = '/'}>
+                                ComandaGo
+                            </h2>
+                            <div className="badge" style={{ background: 'var(--item-hover)', color: 'var(--text-main)', display: 'inline-block' }}>{user?.rol}</div>
+                        </>
+                    )}
+                    {collapsed && (
+                        <h2 style={{ color: 'var(--primary)', marginBottom: 5, fontSize: '1.2rem', cursor: 'pointer' }} onClick={() => window.location.href = '/'}>CG</h2>
+                    )}
+
+                    {/* Toggle Button */}
+                    <button
+                        className="glass-button icon"
+                        onClick={() => setCollapsed(!collapsed)}
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            right: collapsed ? -1000 : -10, // Hide or move out of way? Better strategy below
+                            display: 'none' // We'll put it differently
+                        }}
+                    >
+                    </button>
+
+                    <div style={{ display: 'flex', justifyContent: 'center', marginTop: 5 }}>
+                        <button
+                            className="glass-button"
+                            style={{ padding: 5, borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'absolute', right: collapsed ? 'auto' : 0, top: 5, left: collapsed ? '50%' : 'auto', transform: collapsed ? 'translateX(-50%)' : 'none' }}
+                            onClick={() => setCollapsed(!collapsed)}
+                        >
+                            {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+                        </button>
+                    </div>
                 </div>
 
-                <nav style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
+                <nav style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1, overflowX: 'hidden' }}>
                     {(user?.rol === 'mozo' || user?.rol === 'admin') && (
-                        <NavLink
-                            to="/tables"
-                            className={({ isActive }) => `glass-button ${isActive ? 'primary' : ''}`}
-                            style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}
-                            onClick={() => setMobileOpen(false)}
-                        >
-                            <Grid size={20} /> Mesas
+                        <NavLink to="/tables" className={navLinkClass} style={navLinkStyle} onClick={() => setMobileOpen(false)} title="Mesas">
+                            <Grid size={20} /> {!collapsed && <span>Mesas</span>}
                         </NavLink>
                     )}
 
                     {(user?.rol === 'cocina' || user?.rol === 'admin') && (
-                        <NavLink
-                            to="/kitchen"
-                            className={({ isActive }) => `glass-button ${isActive ? 'primary' : ''}`}
-                            style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}
-                            onClick={() => setMobileOpen(false)}
-                        >
-                            <ChefHat size={20} /> Cocina
+                        <NavLink to="/kitchen" className={navLinkClass} style={navLinkStyle} onClick={() => setMobileOpen(false)} title="Cocina">
+                            <ChefHat size={20} /> {!collapsed && <span>Cocina</span>}
                         </NavLink>
                     )}
 
                     {(user?.rol === 'caja' || user?.rol === 'admin') && (
                         <>
-                            <NavLink
-                                to="/cashier"
-                                className={({ isActive }) => `glass-button ${isActive ? 'primary' : ''}`}
-                                style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}
-                                onClick={() => setMobileOpen(false)}
-                            >
-                                <DollarSign size={20} /> Caja
+                            <NavLink to="/cashier" className={navLinkClass} style={navLinkStyle} onClick={() => setMobileOpen(false)} title="Caja">
+                                <DollarSign size={20} /> {!collapsed && <span>Caja</span>}
                             </NavLink>
-                            <NavLink
-                                to="/admin/categories"
-                                className={({ isActive }) => `glass-button ${isActive ? 'primary' : ''}`}
-                                style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}
-                                onClick={() => setMobileOpen(false)}
-                            >
-                                <Grid size={20} /> Categorías
+                            <NavLink to="/admin/categories" className={navLinkClass} style={navLinkStyle} onClick={() => setMobileOpen(false)} title="Categorías">
+                                <Grid size={20} /> {!collapsed && <span>Categorías</span>}
                             </NavLink>
-                            <NavLink
-                                to="/admin/inventory"
-                                className={({ isActive }) => `glass-button ${isActive ? 'primary' : ''}`}
-                                style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}
-                                onClick={() => setMobileOpen(false)}
-                            >
-                                <ChefHat size={20} /> Almacén
+                            <NavLink to="/admin/inventory" className={navLinkClass} style={navLinkStyle} onClick={() => setMobileOpen(false)} title="Almacén">
+                                <ChefHat size={20} /> {!collapsed && <span>Almacén</span>}
                             </NavLink>
                         </>
                     )}
@@ -104,27 +134,20 @@ const DashboardLayout = () => {
                 <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {(user?.rol === 'admin') && (
                         <>
-
-
-                            <NavLink
-                                to="/admin/users"
-                                className={({ isActive }) => `glass-button ${isActive ? 'primary' : ''}`}
-                                style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center', marginBottom: 10, textDecoration: 'none' }}
-                                onClick={() => setMobileOpen(false)}
-                            >
-                                <User size={20} /> Usuarios
+                            <NavLink to="/admin/users" className={navLinkClass} style={navLinkStyle} onClick={() => setMobileOpen(false)} title="Usuarios">
+                                <User size={20} /> {!collapsed && <span>Usuarios</span>}
                             </NavLink>
-                            <NavLink
-                                to="/admin/staff-stats"
-                                className={({ isActive }) => `glass-button ${isActive ? 'primary' : ''}`}
-                                style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center', marginBottom: 10, textDecoration: 'none' }}
-                                onClick={() => setMobileOpen(false)}
-                            >
-                                <Grid size={20} /> Reporte Personal
+                            <NavLink to="/admin/staff-stats" className={navLinkClass} style={navLinkStyle} onClick={() => setMobileOpen(false)} title="Reporte Personal">
+                                <Grid size={20} /> {!collapsed && <span>Reporte Personal</span>}
                             </NavLink>
                         </>
                     )}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 10, color: 'var(--text-muted)' }}>
+
+                    <NavLink to="/settings" className={navLinkClass} style={navLinkStyle} onClick={() => setMobileOpen(false)} title="Ajustes">
+                        <Settings size={20} /> {!collapsed && <span>Ajustes</span>}
+                    </NavLink>
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between', padding: collapsed ? '10px 0' : 10, color: 'var(--text-muted)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             {user?.foto ? (
                                 <img src={user.foto} alt="Profile" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--primary)' }} />
@@ -133,16 +156,21 @@ const DashboardLayout = () => {
                                     <User size={16} />
                                 </div>
                             )}
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <span style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{user?.nombre}</span>
-                            </div>
+                            {!collapsed && (
+                                <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                                    <span style={{ fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', maxWidth: 120, overflow: 'hidden' }}>{user?.nombre}</span>
+                                </div>
+                            )}
                         </div>
-                        <button onClick={toggleTheme} className="glass-button" style={{ padding: 5, borderRadius: '50%' }}>
-                            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-                        </button>
+                        {!collapsed && (
+                            <button onClick={toggleMode} className="glass-button" style={{ padding: 5, borderRadius: '50%' }}>
+                                {mode === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+                            </button>
+                        )}
                     </div>
-                    <button onClick={handleLogout} className="glass-button" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, background: 'rgba(255,50,50,0.1)', color: '#ff6b6b', borderColor: '#ff6b6b' }}>
-                        <LogOut size={16} /> Salir
+
+                    <button onClick={handleLogout} className="glass-button" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'center', gap: 10, background: 'rgba(255,50,50,0.1)', color: '#ff6b6b', borderColor: '#ff6b6b', padding: collapsed ? 10 : '10px 20px' }}>
+                        <LogOut size={16} /> {!collapsed && "Salir"}
                     </button>
                 </div>
             </aside>

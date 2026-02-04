@@ -7,7 +7,29 @@ const TablesView = () => {
     const [tables, setTables] = useState([]);
     const [selectedTableId, setSelectedTableId] = useState(null);
     const [modalType, setModalType] = useState(null); // 'view' | 'pre-check'
-    const [showTransferMode, setShowTransferMode] = useState(false); // New state
+    const [showTransferMode, setShowTransferMode] = useState(false);
+
+    // Diners Modal State
+    const [showDinersModal, setShowDinersModal] = useState(false);
+    const [selectedFreeTable, setSelectedFreeTable] = useState(null);
+    const [dinersCount, setDinersCount] = useState(2);
+
+    // Handlers
+    const handleTableClick = (table) => {
+        if (table.estado === 'libre') {
+            setSelectedFreeTable(table);
+            setDinersCount(2); // Default
+            setShowDinersModal(true);
+        } else {
+            navigate(`/order/${table.id}`);
+        }
+    };
+
+    const confirmDiners = () => {
+        if (dinersCount < 1) return alert("Mínimo 1 comensal");
+        setShowDinersModal(false);
+        navigate(`/order/${selectedFreeTable.id}`, { state: { comensales: dinersCount } });
+    }; // New state
     const [showTicket, setShowTicket] = useState(false); // Ticket modal state
     const navigate = useNavigate();
 
@@ -176,7 +198,7 @@ const TablesView = () => {
                 <div className="modal-content" onClick={e => e.stopPropagation()}>
                     <div className="modal-header">
                         <div>
-                            <h2>{modalType === 'pre-check' ? 'Pre-cuenta' : 'Pedido Activo'}</h2>
+                            <h2 style={{ color: 'var(--text-main)' }}>{modalType === 'pre-check' ? 'Pre-cuenta' : 'Pedido Activo'}</h2>
                             <div className="text-muted" style={{ fontSize: '0.9rem' }}>
                                 Mesa {selectedTable.numero} • {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </div>
@@ -225,7 +247,7 @@ const TablesView = () => {
                             ) : (
                                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                     <thead>
-                                        <tr style={{ borderBottom: '1px solid var(--glass-border)', textAlign: 'left' }}>
+                                        <tr style={{ borderBottom: '1px solid var(--glass-border)', textAlign: 'left', color: 'var(--text-main)' }}>
                                             <th style={{ padding: 10 }}>Cant.</th>
                                             <th style={{ padding: 10 }}>Producto</th>
                                             {modalType === 'pre-check' ? (
@@ -416,7 +438,7 @@ const TablesView = () => {
                         className="glass-panel"
                         style={{
                             padding: 20,
-                            borderLeft: `5px solid ${getStatusColor(table.estado)}`,
+                            borderLeft: `5px solid var(--primary)`,
                             position: 'relative',
                             transition: 'transform 0.2s',
                             display: 'flex',
@@ -426,7 +448,7 @@ const TablesView = () => {
                     >
                         <div
                             style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
-                            onClick={() => navigate(`/order/${table.id}`)}
+                            onClick={() => handleTableClick(table)}
                         >
                             <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>
                                 Mesa {table.numero}
@@ -435,7 +457,7 @@ const TablesView = () => {
                         </div>
 
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span className="text-muted">{table.capacidad} Pers.</span>
+                            <span></span>
                             {/* Waiter Badge */}
                             {table.estado !== 'libre' && table.comandas?.[0]?.usuario && (
                                 <span style={{
@@ -454,7 +476,7 @@ const TablesView = () => {
                             )}
                         </div>
 
-                        {table.estado === 'ocupada' && (
+                        {table.estado !== 'libre' && (
                             <div style={{ marginTop: 15, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                                 <button
                                     className="glass-button primary"
@@ -488,6 +510,30 @@ const TablesView = () => {
 
             {renderModalContent()}
             {renderTicket()}
+            {/* Diners Modal */}
+            {showDinersModal && (
+                <div className="modal-overlay">
+                    <div className="modal-content" style={{ maxWidth: 400, textAlign: 'center' }}>
+                        <h2>Mesa {selectedFreeTable?.numero}</h2>
+                        <p className="text-muted">Ingrese cantidad de comensales</p>
+
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 20, margin: '30px 0' }}>
+                            <button className="glass-button" onClick={() => setDinersCount(Math.max(1, dinersCount - 1))} style={{ width: 50, height: 50, borderRadius: '50%' }}>
+                                <Minus />
+                            </button>
+                            <span style={{ fontSize: '3rem', fontWeight: 'bold' }}>{dinersCount}</span>
+                            <button className="glass-button" onClick={() => setDinersCount(dinersCount + 1)} style={{ width: 50, height: 50, borderRadius: '50%' }}>
+                                <Plus />
+                            </button>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <button className="glass-button" onClick={() => setShowDinersModal(false)} style={{ flex: 1 }}>Cancelar</button>
+                            <button className="glass-button primary" onClick={confirmDiners} style={{ flex: 1 }}>Continuar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
